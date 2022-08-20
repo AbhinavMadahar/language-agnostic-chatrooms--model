@@ -11,3 +11,6 @@ This way, we partially remove language as a barrier of communicate.
 The idea for this website was inspired by a discussion I had with an Irish, German, and English traveller.
 We talked about how the Internet, a mechanism by which people can easily share information, was expected to give better outcomes than what it actually gave us.
 This website is a vision for a better use of the internet.
+
+The machine translation engine is implemented in the `machine-translation-engine` directory.
+To use the engine, read the instructions in that directory's README.
