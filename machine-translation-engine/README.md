@@ -29,3 +29,10 @@ Within this directory, however, it is refered to as a machine translation model,
 - [ ] Implement model
     - [ ] ...
     - [ ] Train on more powerful hardware
+
+
+## Model design
+
+This problem can be characterized as a _many-to-many machine translation problem_.
+The _many-to-many_ means that the model should be able to take one of many languages and translate to one of many languages.
+For example, we might ask it to translate from Korean to Russian, or from Japanese to Portugese.
