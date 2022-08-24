@@ -37,7 +37,7 @@ Within this directory, however, it is refered to as a machine translation model,
     - [ ] Implement beam search
     - [ ] Run beam search to find best hyperparameter configuration
     - [ ] Train the best hyperparameter configuration fully
-
+- [ ] Connect `main.py` to the model
 
 ## Model design
 
