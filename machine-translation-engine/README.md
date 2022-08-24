@@ -27,6 +27,10 @@ Within this directory, however, it is refered to as a machine translation model,
           It's easy to translate ~100 most common languages because we have a lot of data for them (e.g. Arabic, Bengali, Chinese).
           Translating less common languages is harder because there aren't as many data sets available for them.
 - [x] Figure out how much storage space will be taken up by the dataset
+- [ ] Select languages to target
+- [ ] Download dataset
+    - [ ] Write download script
+    - [ ] Run download script on training machine
 - [ ] Implement model
     - [ ] ...
     - [ ] Train on more powerful hardware
