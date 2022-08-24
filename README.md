@@ -1,6 +1,6 @@
 # Language Agnostic Chatrooms
 
-_The Cadillac of Chatrooms_
+_The CadiLAC of Chatrooms_
 
 This is a website which has chatrooms.
 Each chatroom has a topic, e.g. spaghetti.
