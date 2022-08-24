@@ -32,8 +32,11 @@ Within this directory, however, it is refered to as a machine translation model,
     - [ ] Write download script
     - [ ] Run download script on training machine
 - [ ] Implement model
-    - [ ] ...
-    - [ ] Train on more powerful hardware
+    - [ ] Write code to implement encoder, decoder, and training
+    - [ ] Write code to evaluate a model
+    - [ ] Implement beam search
+    - [ ] Run beam search to find best hyperparameter configuration
+    - [ ] Train the best hyperparameter configuration fully
 
 
 ## Model design
