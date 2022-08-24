@@ -16,3 +16,12 @@ This website is a vision for a better use of the internet.
 
 The machine translation engine is implemented in the `machine-translation-engine` directory.
 To use the engine, read the instructions in that directory's README.
+
+
+## Code structure
+
+The `machine-translation-engine-config.json` lets us define the machine translation engine.
+It does not consider the internals of the engine, like how many layers to use in the encoder, etc.
+Instead, it defines things like which languages are supported.
+We keep this file in the general repository directory so that the app and the engine both use the same config file.
+That way, for example, the backend knows which languages the engine supports.

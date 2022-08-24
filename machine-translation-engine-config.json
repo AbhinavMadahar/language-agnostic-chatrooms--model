@@ -1,0 +1,11 @@
+{
+    "supported-languages": [
+        { "code": "en" },
+        { "code": "zh" },
+        { "code": "hi" },
+        { "code": "es" },
+        { "code": "fr" },
+        { "code": "ar" },
+        { "code": "ru" }
+    ]
+}
