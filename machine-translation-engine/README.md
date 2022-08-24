@@ -20,12 +20,13 @@ Within this directory, however, it is refered to as a machine translation model,
 
 ## TODO
 
-- [ ] Design architecture
-    - [ ] Read literature
-    - [ ] Decide how to formulate this problem
+- [x] Design architecture
+    - [x] Read literature
+    - [x] Decide how to formulate this problem
         - How many languages should we support?
           It's easy to translate ~100 most common languages because we have a lot of data for them (e.g. Arabic, Bengali, Chinese).
           Translating less common languages is harder because there aren't as many data sets available for them.
+- [ ] Figure out how much storage space will be taken up by the dataset
 - [ ] Implement model
     - [ ] ...
     - [ ] Train on more powerful hardware
@@ -36,3 +37,7 @@ Within this directory, however, it is refered to as a machine translation model,
 This problem can be characterized as a _many-to-many machine translation problem_.
 The _many-to-many_ means that the model should be able to take one of many languages and translate to one of many languages.
 For example, we might ask it to translate from Korean to Russian, or from Japanese to Portugese.
+
+We use the architecture introduced in arXiv:2206.14982.
+
+For simplicity, we will only support the top 50 most common languages.
