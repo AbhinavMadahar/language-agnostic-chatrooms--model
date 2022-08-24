@@ -26,7 +26,7 @@ Within this directory, however, it is refered to as a machine translation model,
         - How many languages should we support?
           It's easy to translate ~100 most common languages because we have a lot of data for them (e.g. Arabic, Bengali, Chinese).
           Translating less common languages is harder because there aren't as many data sets available for them.
-- [ ] Figure out how much storage space will be taken up by the dataset
+- [x] Figure out how much storage space will be taken up by the dataset
 - [ ] Implement model
     - [ ] ...
     - [ ] Train on more powerful hardware
@@ -41,3 +41,9 @@ For example, we might ask it to translate from Korean to Russian, or from Japane
 We use the architecture introduced in arXiv:2206.14982.
 
 For simplicity, we will only support the top 50 most common languages.
+
+
+## Training environment
+
+The dataset will be on the order of around 10 gigabytes.
+It might seem quite small, but it's reasonable considering that it's just a bunch of text.
