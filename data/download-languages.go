@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/xml"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -28,6 +29,23 @@ type corpus struct {
 	sentence_pairs_download_link string
 	lang1_tokens_download_link   string
 	lang2_tokens_download_link   string
+}
+
+type TMX struct {
+	Body TMXBody `xml:"body"`
+}
+
+type TMXBody struct {
+	Pairs []Pair `xml:"tu"`
+}
+
+type Pair struct {
+	Sentences []Sentence `xml:"tuv"`
+}
+
+type Sentence struct {
+	Lang    string `xml:"lang,attr"`
+	Content string `xml:"seg"`
 }
 
 func parseNumberWithPowerSuffix(stringRepresentation string) int {
@@ -118,48 +136,51 @@ func corporaOfSentencePairs(lang1, lang2 string) (*[]corpus, bool) {
 	return &corpora, true
 }
 
-func downloadCorpora(corpora *[]corpus) string {
-	pairs := make(chan string, len(*corpora))
+func downloadCorpora(corpora *[]corpus) []Pair {
+	pairs := make(chan []byte, len(*corpora))
 
 	for _, corp := range *corpora {
-		func(corp corpus, pairs chan<- string) {
+		func(corp corpus, pairs chan<- []byte) {
 			resp, err := http.Get(corp.sentence_pairs_download_link)
 			if err != nil {
-				pairs <- ""
+				pairs <- nil
 				return
 			}
 			defer resp.Body.Close()
 
 			body, err := ioutil.ReadAll(resp.Body)
 			if err != nil {
-				pairs <- ""
+				pairs <- nil
 				return
 			}
 
 			reader := bytes.NewReader(body)
 			gzreader, e1 := gzip.NewReader(reader)
 			if e1 != nil {
-				pairs <- ""
+				pairs <- nil
 				return
 			}
 
 			output, e2 := ioutil.ReadAll(gzreader)
 			if e2 != nil {
-				pairs <- ""
+				pairs <- nil
 				return
 			}
 
-			result := string(output)
-
-			pairs <- result
+			pairs <- output
 		}(corp, pairs)
 	}
 
-	p := ""
+	concatenatedPairs := make([]Pair, 0)
 	for i := 0; i < len(*corpora); i++ {
-		p = <-pairs
+		var tmx TMX
+		p := <-pairs
+		if p != nil {
+			xml.Unmarshal(p, &tmx)
+			concatenatedPairs = append(concatenatedPairs, tmx.Body.Pairs...)
+		}
 	}
-	return p
+	return concatenatedPairs
 }
 
 func downloadSentencesPairToFile(lang1, lang2 string, done chan<- struct{}) {
