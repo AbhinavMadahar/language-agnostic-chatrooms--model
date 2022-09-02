@@ -155,14 +155,14 @@ func downloadCorpora(corpora *[]corpus) []Pair {
 			}
 
 			reader := bytes.NewReader(body)
-			gzreader, e1 := gzip.NewReader(reader)
-			if e1 != nil {
+			gzreader, err := gzip.NewReader(reader)
+			if err != nil {
 				pairs <- nil
 				return
 			}
 
-			output, e2 := ioutil.ReadAll(gzreader)
-			if e2 != nil {
+			output, err := ioutil.ReadAll(gzreader)
+			if err != nil {
 				pairs <- nil
 				return
 			}
@@ -184,13 +184,14 @@ func downloadCorpora(corpora *[]corpus) []Pair {
 }
 
 func downloadSentencesPairToFile(lang1, lang2 string, done chan<- struct{}) {
+	defer func() { done <- struct{}{} }()
+
 	corpora, ok := corporaOfSentencePairs(lang1, lang2)
 	if !ok {
 		return
 	}
 
-	downloadCorpora(corpora)
-	done <- struct{}{}
+	fmt.Println(len(downloadCorpora(corpora)))
 }
 
 func main() {
