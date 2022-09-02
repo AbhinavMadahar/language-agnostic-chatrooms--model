@@ -3,16 +3,17 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
-	"strings"
 
 	"golang.org/x/net/html"
 )
-
-type language string
 
 type corpus struct {
 	lang1, lang2 string
@@ -29,14 +30,6 @@ type corpus struct {
 	lang2_tokens_download_link   string
 }
 
-func printHTMLNode(node *html.Node, depth int) {
-	fmt.Printf("%s %q\n", strings.Repeat("\t", depth), node.Data)
-
-	for child := node.FirstChild; child != nil; child = child.NextSibling {
-		printHTMLNode(child, depth+1)
-	}
-}
-
 func parseNumberWithPowerSuffix(stringRepresentation string) int {
 	multiplier := 10
 	switch stringRepresentation[len(stringRepresentation)-1] {
@@ -51,7 +44,7 @@ func parseNumberWithPowerSuffix(stringRepresentation string) int {
 }
 
 // looks up the OPUS page for the given language pair and returns the corpora
-func corporaOfSentencePairs(lang1, lang2 language) (*[]corpus, bool) {
+func corporaOfSentencePairs(lang1, lang2 string) (*[]corpus, bool) {
 	url := fmt.Sprintf("https://opus.nlpl.eu/?src=%s&trg=%s&minsize=all", lang1, lang2)
 
 	resp, err := http.Get(url)
@@ -73,7 +66,9 @@ func corporaOfSentencePairs(lang1, lang2 language) (*[]corpus, bool) {
 
 	corpora := make([]corpus, 0)
 
-	for row := rows.FirstChild.NextSibling; row != nil; row = row.NextSibling {
+	// the last row is a margin row which shows the totals for each column.
+	// we don't want to look at that last now, so we use a row.NextSibling != nil check to avoid it.
+	for row := rows.FirstChild.NextSibling; row.NextSibling != nil; row = row.NextSibling {
 		if row.Data != "tr" {
 			continue
 		}
@@ -113,7 +108,7 @@ func corporaOfSentencePairs(lang1, lang2 language) (*[]corpus, bool) {
 			corp.lang2_tokens = parseNumberWithPowerSuffix(cell.FirstChild.Data)
 		}
 
-		corp.sentence_pairs_download_link = fmt.Sprintf("https://object.pouta.csc.fi/OPUS-%s/%s/moses/%s-%s.txt.zip", corp.name, version, lang1, lang2)
+		corp.sentence_pairs_download_link = fmt.Sprintf("https://object.pouta.csc.fi/OPUS-%s/%s/tmx/%s-%s.tmx.gz", corp.name, version, lang1, lang2)
 		corp.lang1_tokens_download_link = fmt.Sprintf("https://object.pouta.csc.fi/OPUS-%s/%s/mono/%s.tok.gz", corp.name, version, lang1)
 		corp.lang2_tokens_download_link = fmt.Sprintf("https://object.pouta.csc.fi/OPUS-%s/%s/mono/%s.tok.gz", corp.name, version, lang2)
 
@@ -123,16 +118,74 @@ func corporaOfSentencePairs(lang1, lang2 language) (*[]corpus, bool) {
 	return &corpora, true
 }
 
-func main() {
-	languages := []language{}
-	for _, lang := range os.Args[1:] {
-		languages = append(languages, language(lang))
+func downloadCorpora(corpora *[]corpus) string {
+	pairs := make(chan string, len(*corpora))
+
+	for _, corp := range *corpora {
+		func(corp corpus, pairs chan<- string) {
+			resp, err := http.Get(corp.sentence_pairs_download_link)
+			if err != nil {
+				pairs <- ""
+				return
+			}
+			defer resp.Body.Close()
+
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				pairs <- ""
+				return
+			}
+
+			reader := bytes.NewReader(body)
+			gzreader, e1 := gzip.NewReader(reader)
+			if e1 != nil {
+				pairs <- ""
+				return
+			}
+
+			output, e2 := ioutil.ReadAll(gzreader)
+			if e2 != nil {
+				pairs <- ""
+				return
+			}
+
+			result := string(output)
+
+			pairs <- result
+		}(corp, pairs)
 	}
 
-	corpora, ok := corporaOfSentencePairs(languages[0], languages[1])
+	p := ""
+	for i := 0; i < len(*corpora); i++ {
+		p = <-pairs
+	}
+	return p
+}
+
+func downloadSentencesPairToFile(lang1, lang2 string, done chan<- struct{}) {
+	corpora, ok := corporaOfSentencePairs(lang1, lang2)
 	if !ok {
 		return
 	}
 
-	fmt.Printf("%v\n", corpora)
+	downloadCorpora(corpora)
+	done <- struct{}{}
+}
+
+func main() {
+	languages := os.Args[1:]
+	expected := len(languages) * (len(languages) - 1) / 2
+
+	sort.Strings(languages)
+
+	done := make(chan struct{}, expected)
+	for i, lang1 := range languages {
+		for _, lang2 := range languages[i+1:] {
+			downloadSentencesPairToFile(lang1, lang2, done)
+		}
+	}
+
+	for i := 0; i < expected; i++ {
+		<-done
+	}
 }
