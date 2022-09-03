@@ -5,7 +5,6 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
-	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io/ioutil"
@@ -137,14 +136,12 @@ func corporaOfSentencePairs(lang1, lang2 string) (*[]corpus, bool) {
 	return &corpora, true
 }
 
-func downloadCorpora(corpora *[]corpus) []Pair {
-	pairs := make(chan []byte, len(*corpora))
-
-	for i, corp := range *corpora {
-		func(corp corpus, pairs chan<- []byte, i int) {
+// downloads corpora and sends slices of pairs ot the channel
+func downloadCorpora(corpora *[]corpus, pairs chan<- []Pair) {
+	for _, corp := range *corpora {
+		go func(corp corpus) {
 			resp, err := http.Get(corp.sentence_pairs_download_link)
 			if err != nil {
-				pairs <- nil
 				return
 			}
 			defer resp.Body.Close()
@@ -168,20 +165,11 @@ func downloadCorpora(corpora *[]corpus) []Pair {
 				return
 			}
 
-			pairs <- output
-		}(corp, pairs, i)
+			var tmx TMX
+			xml.Unmarshal(output, &tmx)
+			pairs <- tmx.Body.Pairs
+		}(corp)
 	}
-
-	concatenatedPairs := make([]Pair, 0)
-	for i := 0; i < len(*corpora); i++ {
-		var tmx TMX
-		p := <-pairs
-		if p != nil {
-			xml.Unmarshal(p, &tmx)
-			concatenatedPairs = append(concatenatedPairs, tmx.Body.Pairs...)
-		}
-	}
-	return concatenatedPairs
 }
 
 func downloadSentencesPairToFile(lang1, lang2, filename string, done chan<- struct{}) {
@@ -192,10 +180,27 @@ func downloadSentencesPairToFile(lang1, lang2, filename string, done chan<- stru
 		return
 	}
 
-	pairs := downloadCorpora(corpora)
-	file, _ := json.MarshalIndent(pairs, "", " ")
+	f, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
-	_ = ioutil.WriteFile(filename, file, 0644)
+	defer f.Close()
+
+	pairs := make(chan []Pair)
+	go downloadCorpora(corpora, pairs)
+	for received := 0; received < len(*corpora); received++ {
+		for _, pair := range <-pairs {
+			sentence1, sentence2 := pair.Sentences[0], pair.Sentences[1]
+			stringed := fmt.Sprintf("%s: %s\n%s: %s\n\n", sentence1.Lang, sentence1.Content, sentence2.Lang, sentence2.Content)
+
+			if _, err = f.WriteString(stringed); err != nil {
+				fmt.Println(err)
+				return
+			}
+		}
+	}
 }
 
 func main() {
@@ -208,7 +213,7 @@ func main() {
 	_ = os.Mkdir("pairs", os.ModePerm)
 	for i, lang1 := range languages {
 		for _, lang2 := range languages[i+1:] {
-			downloadSentencesPairToFile(lang1, lang2, fmt.Sprintf("pairs/%s-%s.json", lang1, lang2), done)
+			downloadSentencesPairToFile(lang1, lang2, fmt.Sprintf("pairs/%s-%s.pairs", lang1, lang2), done)
 		}
 	}
 
