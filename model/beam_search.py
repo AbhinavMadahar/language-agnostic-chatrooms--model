@@ -90,13 +90,11 @@ def main() -> None:
 
     seed_configuration = Configuration(args.learning_rate)
     beam = [seed_configuration]
-    print(beam)
 
     for _ in range(args.passes):
         beam = beam_search_pass(beam, descend, evaluate, args.beam_size, args.expansion_factor)
-        print(beam)
     
-    return beam[0]
+    print('The best configuration is', beam[0])
 
 
 if __name__ == "__main__":
