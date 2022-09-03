@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io/ioutil"
@@ -139,8 +140,8 @@ func corporaOfSentencePairs(lang1, lang2 string) (*[]corpus, bool) {
 func downloadCorpora(corpora *[]corpus) []Pair {
 	pairs := make(chan []byte, len(*corpora))
 
-	for _, corp := range *corpora {
-		func(corp corpus, pairs chan<- []byte) {
+	for i, corp := range *corpora {
+		func(corp corpus, pairs chan<- []byte, i int) {
 			resp, err := http.Get(corp.sentence_pairs_download_link)
 			if err != nil {
 				pairs <- nil
@@ -168,7 +169,7 @@ func downloadCorpora(corpora *[]corpus) []Pair {
 			}
 
 			pairs <- output
-		}(corp, pairs)
+		}(corp, pairs, i)
 	}
 
 	concatenatedPairs := make([]Pair, 0)
@@ -183,7 +184,7 @@ func downloadCorpora(corpora *[]corpus) []Pair {
 	return concatenatedPairs
 }
 
-func downloadSentencesPairToFile(lang1, lang2 string, done chan<- struct{}) {
+func downloadSentencesPairToFile(lang1, lang2, filename string, done chan<- struct{}) {
 	defer func() { done <- struct{}{} }()
 
 	corpora, ok := corporaOfSentencePairs(lang1, lang2)
@@ -191,7 +192,10 @@ func downloadSentencesPairToFile(lang1, lang2 string, done chan<- struct{}) {
 		return
 	}
 
-	fmt.Println(len(downloadCorpora(corpora)))
+	pairs := downloadCorpora(corpora)
+	file, _ := json.MarshalIndent(pairs, "", " ")
+
+	_ = ioutil.WriteFile(filename, file, 0644)
 }
 
 func main() {
@@ -201,9 +205,10 @@ func main() {
 	sort.Strings(languages)
 
 	done := make(chan struct{}, expected)
+	_ = os.Mkdir("pairs", os.ModePerm)
 	for i, lang1 := range languages {
 		for _, lang2 := range languages[i+1:] {
-			downloadSentencesPairToFile(lang1, lang2, done)
+			downloadSentencesPairToFile(lang1, lang2, fmt.Sprintf("pairs/%s-%s.json", lang1, lang2), done)
 		}
 	}
 
