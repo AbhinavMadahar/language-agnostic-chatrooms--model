@@ -1,16 +1,127 @@
 import argparse
+import random
+import torch
 
 from collections import defaultdict
-from typing import Dict, List, Iterable, Tuple
+from typing import Any, Dict, List, Generator, Iterable, Tuple
+from model.model import Encoder, Decoder
 from vocab import Vocabulary
 
 
-def train(learning_rate: float) -> Tuple[List[float], List[float]]:
+def train_many_to_many(encoder: Encoder,
+                       decoder: Decoder, 
+                       data: Iterable[Tuple[torch.Tensor]],
+                       learning_rate: float, 
+    ) -> Tuple[List[float], List[float]]:
     """
-    Trains the model.
+    Trains the model for the first phase.
+    In this phase, we train the model to translate from every language to every other language.
 
     :param learning_rate: The learning rate.
     :return: A list of the train loss values and a list of the validation loss values.
+    """
+
+    raise NotImplementedError
+
+
+def train_many_to_many_single_epoch(encoder: Encoder,
+                                    decoder: Decoder,
+                                    data: Iterable[Tuple[torch.Tensor, torch.Tensor]],
+                                    learning_rate: float,
+    ) -> None:
+
+    raise NotImplementedError
+
+
+def train_many_to_one(encoder: Encoder,
+                      decoder: Decoder,
+                      data: Iterable[Tuple[torch.Tensor, torch.Tensor]],
+                      learning_rate: float,
+    ) -> Tuple[Encoder, Decoder]:
+    """
+    Trains the model for the second phase.
+    In this phase, we fine-tune the general, many-to-many model to translate to a specific language.
+
+    :param learning_rate: The learning rate.
+    :return: A list of the train loss values and a list of the validation loss values.
+    """
+
+    raise NotImplementedError
+
+
+def train_many_to_many_single_epoch(encoder: Encoder,
+                                    decoder: Decoder,
+                                    data: Iterable[Tuple[torch.Tensor, torch.Tensor]],
+                                    learning_rate: float,
+    ) -> None:
+
+    raise NotImplementedError
+
+
+def train(encoder: Encoder,
+          decoder: Decoder,
+          data: Dict[Tuple[str, str], Iterable[Tuple[torch.Tensor, torch.Tensor]]],
+          first_phase_learning_rate: int,
+          second_phase_learning_rate: int,
+    ) -> Dict[str, Tuple[Encoder, Decoder]]:
+    """
+    Trains the model over both phases.
+    It returns the many-to-one machine translation models.
+
+    :param encoder: The encoder.
+    :param decoder: The decoder.
+    :param data: A dictionary which maps language pairs (e.g. ('en', 'fr')) to an iterator of sentence pairs tensors.
+    :param first_phase_learning_rate: The learning rate for the first phase.
+    :param second_phase_learning_rate: The learning rate for the second phase.
+    :return: A dictionary mapping languages to their many-to-one machine translation models.
+    """
+
+    def randomly_sampled_sentence_pairs(data: Dict[Tuple[str, str], Iterable[Tuple[torch.Tensor, torch.Tensor]]]) -> Generator[Tuple[torch.Tensor, torch.Tensor]]:
+        "Use the existing iterables to make a new iterable which randomly samples with uniformity over the language pairs."
+        language_pairs_which_still_have_data = list(data.keys())
+        while True:
+            language_pair = random.choice(language_pairs_which_still_have_data)
+            try:
+                tensor_1, tensor_2 = next(data[language_pair])
+                yield tensor_1, tensor_2
+                yield tensor_2, tensor_1
+            except StopIteration:
+                language_pairs_which_still_have_data.remove(language_pair)
+    
+    def randomly_sampled_sentence_pairs_for_single_language_pair(data: Dict[Tuple[str, str], Iterable[Tuple[torch.Tensor, torch.Tensor]]],
+                                                                 language: str
+        ) -> Generator[Tuple[torch.Tensor, torch.Tensor]]:
+        """
+        Tensors which translate from any language to the given language.
+        This should be used in the second phase.
+        """
+
+        raise NotImplementedError
+        
+    # phase 1
+    train_many_to_many(encoder, decoder, learning_rate=first_phase_learning_rate)
+    
+    # phase 2
+    languages = []
+    for pair in data.keys():
+        languages.append(pair[0])
+        languages.append(pair[1])
+    
+    many_to_one_models: Dict[str, Tuple[Encoder, Decoder]] = dict()
+    base_encoder, base_decoder = encoder, decoder
+    for language in languages:
+        encoder, decoder = clone(base_encoder), clone(base_decoder)  # TODO: somehow, we have to clone the model
+        train_many_to_one(encoder, decoder, randomly_sampled_sentence_pairs_for_single_language_pair(data, language), second_phase_learning_rate)
+        many_to_one_models[language] = (encoder, decoder)
+    
+    return many_to_one_models
+
+
+def clone(model: torch.Module) -> torch.Module:
+    """
+    Clone a model.
+    
+    :param model: The model to clone.
     """
 
     raise NotImplementedError
@@ -51,7 +162,13 @@ def main() -> None:
         required=True,
     )
     parser.add_argument(
-        '--learning_rate',
+        '--first_phase_learning_rate',
+        type=float,
+        required=False,
+        default=0.001,
+    )
+    parser.add_argument(
+        '--second_phase_learning_rate',
         type=float,
         required=False,
         default=0.001,
@@ -67,13 +184,17 @@ def main() -> None:
         for language_2 in languages[i+1:]:
             try:
                 with open(f'data/pairs/{language_1}-{language_2}.pairs', 'r') as file:
-                    print(list(tensors_from_pairs_file(file, vocabularies[language_1], vocabularies[language_2])))
+                    tensors_from_pairs_file(file, vocabularies[language_1], vocabularies[language_2])
             except FileNotFoundError:
                 with open(f'data/pairs/{language_2}-{language_1}.pairs', 'r') as file:
                     tensors_from_pairs_file(file, vocabularies[language_2], vocabularies[language_1])
 
-    train(**args)
+    encoder = Encoder()
+    decoder = Decoder()
 
+    # TODO: call train
+
+    raise NotImplementedError
 
 if __name__ == '__main__':
     main()
