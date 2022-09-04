@@ -30,7 +30,7 @@ def train_many_to_many_single_epoch(encoder: Encoder,
                                     data: Iterable[Tuple[torch.Tensor, torch.Tensor]],
                                     learning_rate: float,
                                     validation_split: float,
-    ) -> None:
+    ) -> Tuple[List[float], List[float]]:
 
     raise NotImplementedError
 
@@ -40,7 +40,7 @@ def train_many_to_one(encoder: Encoder,
                       data: Iterable[Tuple[torch.Tensor, torch.Tensor]],
                       learning_rate: float,
                       validation_split: float,
-    ) -> Tuple[Encoder, Decoder]:
+    ) -> Tuple[List[float], List[float]]:
     """
     Trains the model for the second phase.
     In this phase, we fine-tune the general, many-to-many model to translate to a specific language.
@@ -57,7 +57,7 @@ def train_many_to_many_single_epoch(encoder: Encoder,
                                     data: Iterable[Tuple[torch.Tensor, torch.Tensor]],
                                     learning_rate: float,
                                     validation_split: float,
-    ) -> None:
+    ) -> Tuple[List[float], List[float]]:
 
     raise NotImplementedError
 
@@ -147,7 +147,6 @@ def tensors_from_pairs_file(file: Iterable[str], vocab_1, vocab_2) -> Generator[
     :param file: A stream of the contents of the pairs file. Each value is a line.
     :param vocab_1: The vocabulary for language 1. This method grows the vocabulary while reading.
     :param vocab_2: The vocabulary for language 2. This method grows the vocabulary while reading.
-    :return: None.
     """
 
     while True:
