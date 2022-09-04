@@ -181,5 +181,6 @@ def main() -> None:
 
     train(encoder, decoder, read(args.languages.split(' ')), args.first_phase_learning_rate, args.second_phase_learning_rate, args.validation_split)
 
+
 if __name__ == '__main__':
     main()
