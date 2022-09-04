@@ -99,7 +99,7 @@ def train(encoder: Encoder,
         raise NotImplementedError
         
     # phase 1
-    train_many_to_many(encoder, decoder, learning_rate=first_phase_learning_rate)
+    train_many_to_many(encoder, decoder, randomly_sampled_sentence_pairs(data), learning_rate=first_phase_learning_rate)
     
     # phase 2
     languages = []
@@ -110,7 +110,7 @@ def train(encoder: Encoder,
     many_to_one_models: Dict[str, Tuple[Encoder, Decoder]] = dict()
     base_encoder, base_decoder = encoder, decoder
     for language in languages:
-        encoder, decoder = clone(base_encoder), clone(base_decoder)  # TODO: somehow, we have to clone the model
+        encoder, decoder = clone(base_encoder), clone(base_decoder)
         train_many_to_one(encoder, decoder, randomly_sampled_sentence_pairs_for_single_language_pair(data, language), second_phase_learning_rate)
         many_to_one_models[language] = (encoder, decoder)
     
@@ -127,7 +127,7 @@ def clone(model: torch.Module) -> torch.Module:
     raise NotImplementedError
 
 
-def tensors_from_pairs_file(file: Iterable[str], vocab_1, vocab_2) -> None:
+def tensors_from_pairs_file(file: Iterable[str], vocab_1, vocab_2) -> Generator[Tuple[torch.Tensor, torch.Tensor]]:
     """
     Extracts the sentences from a pairs file and yields them as tensors.
 
@@ -180,21 +180,22 @@ def main() -> None:
 
     vocabularies: Dict[str, Vocabulary] = defaultdict(Vocabulary)
     languages = args.languages.split(' ')
+    data: Dict[Tuple[str, str], Generator[Tuple[torch.Tensor, torch.Tensor]]] = dict()
     for i, language_1 in enumerate(languages):
         for language_2 in languages[i+1:]:
             try:
                 with open(f'data/pairs/{language_1}-{language_2}.pairs', 'r') as file:
-                    tensors_from_pairs_file(file, vocabularies[language_1], vocabularies[language_2])
+                    data[(language_1, language_2)] = tensors_from_pairs_file(file, vocabularies[language_1], vocabularies[language_2])
             except FileNotFoundError:
                 with open(f'data/pairs/{language_2}-{language_1}.pairs', 'r') as file:
-                    tensors_from_pairs_file(file, vocabularies[language_2], vocabularies[language_1])
+                    data[(language_2, language_1)] = tensors_from_pairs_file(file, vocabularies[language_2], vocabularies[language_1])
 
     encoder = Encoder()
     decoder = Decoder()
 
     # TODO: call train
 
-    raise NotImplementedError
+    train(encoder, decoder, data, args.first_phase_learning_rate, args.second_phase_learning_rate)
 
 if __name__ == '__main__':
     main()
