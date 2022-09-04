@@ -12,6 +12,7 @@ def train_many_to_many(encoder: Encoder,
                        decoder: Decoder, 
                        data: Iterable[Tuple[torch.Tensor]],
                        learning_rate: float, 
+                       validation_split: float,
     ) -> Tuple[List[float], List[float]]:
     """
     Trains the model for the first phase.
@@ -28,6 +29,7 @@ def train_many_to_many_single_epoch(encoder: Encoder,
                                     decoder: Decoder,
                                     data: Iterable[Tuple[torch.Tensor, torch.Tensor]],
                                     learning_rate: float,
+                                    validation_split: float,
     ) -> None:
 
     raise NotImplementedError
@@ -37,6 +39,7 @@ def train_many_to_one(encoder: Encoder,
                       decoder: Decoder,
                       data: Iterable[Tuple[torch.Tensor, torch.Tensor]],
                       learning_rate: float,
+                      validation_split: float,
     ) -> Tuple[Encoder, Decoder]:
     """
     Trains the model for the second phase.
@@ -53,6 +56,7 @@ def train_many_to_many_single_epoch(encoder: Encoder,
                                     decoder: Decoder,
                                     data: Iterable[Tuple[torch.Tensor, torch.Tensor]],
                                     learning_rate: float,
+                                    validation_split: float,
     ) -> None:
 
     raise NotImplementedError
@@ -63,6 +67,7 @@ def train(encoder: Encoder,
           data: Dict[Tuple[str, str], Iterable[Tuple[torch.Tensor, torch.Tensor]]],
           first_phase_learning_rate: int,
           second_phase_learning_rate: int,
+          validation_split: float,
     ) -> Dict[str, Tuple[Encoder, Decoder]]:
     """
     Trains the model over both phases.
@@ -106,7 +111,7 @@ def train(encoder: Encoder,
                 pairs_involving_language_which_still_have_data.remove(language_pair)
         
     # phase 1
-    train_many_to_many(encoder, decoder, randomly_sampled_sentence_pairs(data), learning_rate=first_phase_learning_rate)
+    train_many_to_many(encoder, decoder, randomly_sampled_sentence_pairs(data), learning_rate=first_phase_learning_rate, validation_split=validation_split)
 
     # phase 2
     languages = []
@@ -118,7 +123,7 @@ def train(encoder: Encoder,
     base_encoder, base_decoder = encoder, decoder
     for language in languages:
         encoder, decoder = clone(base_encoder), clone(base_decoder)
-        train_many_to_one(encoder, decoder, randomly_sampled_sentence_pairs_for_single_language_pair(data, language), second_phase_learning_rate)
+        train_many_to_one(encoder, decoder, randomly_sampled_sentence_pairs_for_single_language_pair(data, language), second_phase_learning_rate, validation_split=validation_split)
         many_to_one_models[language] = (encoder, decoder)
     
     return many_to_one_models
@@ -181,6 +186,12 @@ def main() -> None:
         required=False,
         default=0.001,
     )
+    parser.add_argument(
+        '--validation_split',
+        type=float,
+        required=False,
+        default=0.1,
+    )
 
     args = parser.parse_args()
 
@@ -201,7 +212,7 @@ def main() -> None:
     encoder = Encoder()
     decoder = Decoder()
 
-    train(encoder, decoder, data, args.first_phase_learning_rate, args.second_phase_learning_rate)
+    train(encoder, decoder, data, args.first_phase_learning_rate, args.second_phase_learning_rate, args.validation_split)
 
 if __name__ == '__main__':
     main()
