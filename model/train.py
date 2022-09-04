@@ -201,8 +201,6 @@ def main() -> None:
     encoder = Encoder()
     decoder = Decoder()
 
-    # TODO: call train
-
     train(encoder, decoder, data, args.first_phase_learning_rate, args.second_phase_learning_rate)
 
 if __name__ == '__main__':
