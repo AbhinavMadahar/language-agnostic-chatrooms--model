@@ -129,6 +129,7 @@ def clone(model: torch.Module) -> torch.Module:
     Clone a model.
     
     :param model: The model to clone.
+    :return: The deep copy of the model.
     """
 
     raise NotImplementedError
