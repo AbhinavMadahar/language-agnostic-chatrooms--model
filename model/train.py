@@ -79,7 +79,7 @@ def train(encoder: Encoder,
     def randomly_sampled_sentence_pairs(data: Dict[Tuple[str, str], Iterable[Tuple[torch.Tensor, torch.Tensor]]]) -> Generator[Tuple[torch.Tensor, torch.Tensor]]:
         "Use the existing iterables to make a new iterable which randomly samples with uniformity over the language pairs."
         language_pairs_which_still_have_data = list(data.keys())
-        while True:
+        while len(language_pairs_which_still_have_data) != 0:
             language_pair = random.choice(language_pairs_which_still_have_data)
             try:
                 tensor_1, tensor_2 = next(data[language_pair])
@@ -96,11 +96,18 @@ def train(encoder: Encoder,
         This should be used in the second phase.
         """
 
-        raise NotImplementedError
+        pairs_involving_language_which_still_have_data = [pair for pair in data.keys() if language in pair]
+        while len(pairs_involving_language_which_still_have_data) != 0:
+            language_pair = random.choice(pairs_involving_language_which_still_have_data)
+            try:
+                tensor_1, tensor_2 = next(data[language_pair])
+                yield tensor_1, tensor_2 if language_pair[1] == language else tensor_2, tensor_1
+            except StopIteration:
+                pairs_involving_language_which_still_have_data.remove(language_pair)
         
     # phase 1
     train_many_to_many(encoder, decoder, randomly_sampled_sentence_pairs(data), learning_rate=first_phase_learning_rate)
-    
+
     # phase 2
     languages = []
     for pair in data.keys():
