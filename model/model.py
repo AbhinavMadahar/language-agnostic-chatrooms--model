@@ -28,7 +28,7 @@ class Encoder:
         raise NotImplementedError
 
 
-class EncoderBlock:
+class DecoderBlock:
     """
     A decoder block consisting of a masked multi-head attention, a multi-body attention using the encoder outputs, and a positionwise feedforward layer,
     all wrapped with residual connections and layer norm.
