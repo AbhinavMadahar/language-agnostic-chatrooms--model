@@ -53,6 +53,7 @@ That way, for example, the backend knows which languages the engine supports.
 - [ ] Select languages to target
 - [ ] Download dataset
     - [ ] Write download script
+        - [ ] Make download script stop using so much RAM
     - [ ] Run download script on training machine
 - [ ] Implement model
     - [ ] Write code to implement encoder, decoder, and training
