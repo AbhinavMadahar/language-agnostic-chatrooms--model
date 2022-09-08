@@ -1,3 +1,4 @@
+import argparse
 import torch
 
 from collections import defaultdict
@@ -18,12 +19,14 @@ def tensors_from_pairs_file(file: Iterable[str], vocab_1, vocab_2) -> Generator[
         try:
             sentence_1, sentence_2, _ = next(file), next(file), next(file)
         except StopIteration:
-            return 
+            break 
         vocab_1.add_tokens_from_text(sentence_1)
         vocab_2.add_tokens_from_text(sentence_2)
         tensor_1 = vocab_1.sparsely_encoded(sentence_1)
         tensor_2 = vocab_2.sparsely_encoded(sentence_2)
         yield (tensor_1, tensor_2)
+    
+    file.close()
 
 
 def read(languages: List[str]) -> Dict[Tuple[str, str], Generator[Tuple[torch.Tensor, torch.Tensor], None, None]]:
@@ -33,10 +36,33 @@ def read(languages: List[str]) -> Dict[Tuple[str, str], Generator[Tuple[torch.Te
     for i, language_1 in enumerate(languages):
         for language_2 in languages[i+1:]:
             try:
-                with open(f'data/pairs/{language_1}-{language_2}.pairs', 'r') as file:
-                    data[(language_1, language_2)] = tensors_from_pairs_file(file, vocabularies[language_1], vocabularies[language_2])
+                file = open(f'data/pairs/{language_1}-{language_2}.pairs', 'r')
+                data[(language_1, language_2)] = tensors_from_pairs_file(file, vocabularies[language_1], vocabularies[language_2])
             except FileNotFoundError:
-                with open(f'data/pairs/{language_2}-{language_1}.pairs', 'r') as file:
-                    data[(language_2, language_1)] = tensors_from_pairs_file(file, vocabularies[language_2], vocabularies[language_1])
+                file = open(f'data/pairs/{language_2}-{language_1}.pairs', 'r')
+                data[(language_2, language_1)] = tensors_from_pairs_file(file, vocabularies[language_2], vocabularies[language_1])
     
     return data
+
+
+def main() -> None:
+    """
+    Load the data for a given set of languages and print out a snippet of the sentence pairs.
+    """
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--languages',
+        type=str,
+        required=True,
+    )
+
+    args = parser.parse_args()
+
+    data = read(args.languages.split(' '))
+
+    for pair, generator in data.items():
+        print(pair, next(generator))
+
+if __name__ == '__main__':
+    main()
