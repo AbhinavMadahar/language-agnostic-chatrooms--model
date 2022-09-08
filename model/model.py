@@ -1,7 +1,7 @@
 import math
 import torch
 
-from collections import Iterable, List, OrderedDict, Tuple
+from typing import Iterable, List, OrderedDict, Tuple
 from torch import nn
 
 

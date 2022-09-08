@@ -1,7 +1,7 @@
 import torch
 
 from collections import defaultdict
-from model.vocab import Vocabulary
+from vocab import Vocabulary
 from typing import Dict, Generator, Iterable, List, Tuple
 
 

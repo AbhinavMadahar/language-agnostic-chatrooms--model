@@ -4,8 +4,8 @@ import torch
 
 from collections import defaultdict
 from typing import Any, Dict, List, Generator, Iterable, Tuple
-from model.model import Encoder, Decoder
-from model.data import read
+from model import Encoder, Decoder
+from data import read
 from vocab import Vocabulary
 
 
