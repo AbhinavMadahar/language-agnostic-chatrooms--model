@@ -1,4 +1,6 @@
 **/env
 *.pyc
 
+**/.pytest_cache
+
 data/pairs
