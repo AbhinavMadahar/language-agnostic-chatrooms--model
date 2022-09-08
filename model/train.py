@@ -3,9 +3,10 @@ import random
 import torch
 
 from collections import defaultdict
-from typing import Any, Dict, List, Generator, Iterable, Tuple
-from model import Encoder, Decoder
 from data import read
+from model import Encoder, Decoder
+from torch import nn
+from typing import Any, Dict, List, Generator, Iterable, Tuple
 from vocab import Vocabulary
 
 
@@ -130,7 +131,7 @@ def train(encoder: Encoder,
     return many_to_one_models
 
 
-def clone(model: torch.Module) -> torch.Module:
+def clone(model: nn.Module) -> nn.Module:
     """
     Clone a model.
     

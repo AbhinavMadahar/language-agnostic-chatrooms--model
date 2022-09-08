@@ -5,7 +5,7 @@ from vocab import Vocabulary
 from typing import Dict, Generator, Iterable, List, Tuple
 
 
-def tensors_from_pairs_file(file: Iterable[str], vocab_1, vocab_2) -> Generator[Tuple[torch.Tensor, torch.Tensor]]:
+def tensors_from_pairs_file(file: Iterable[str], vocab_1, vocab_2) -> Generator[Tuple[torch.Tensor, torch.Tensor], None, None]:
     """
     Extracts the sentences from a pairs file and yields them as tensors.
 
@@ -26,7 +26,7 @@ def tensors_from_pairs_file(file: Iterable[str], vocab_1, vocab_2) -> Generator[
         yield (tensor_1, tensor_2)
 
 
-def read(languages: List[str]) -> Dict[Tuple[str, str], Generator[Tuple[torch.Tensor, torch.Tensor]]]:
+def read(languages: List[str]) -> Dict[Tuple[str, str], Generator[Tuple[torch.Tensor, torch.Tensor], None, None]]:
     vocabularies: Dict[str, Vocabulary] = defaultdict(Vocabulary)
 
     data: Dict[Tuple[str, str], Generator[Tuple[torch.Tensor, torch.Tensor]]] = dict()
