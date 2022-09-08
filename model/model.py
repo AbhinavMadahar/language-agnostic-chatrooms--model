@@ -9,7 +9,7 @@ from torch import nn
 # these should not be used directly.
 
 
-def masked_softmax(X: torch.Tensor, valid_lens: List[int]) -> torch.Tensor:
+def masked_softmax(X: torch.Tensor, valid_lengths: List[int]) -> torch.Tensor:
     """Perform softmax operation by masking elements on the last axis."""
     # X: 3D tensor, valid_lens: 1D or 2D tensor
     def _sequence_mask(X, valid_len, value=0):
@@ -19,17 +19,17 @@ def masked_softmax(X: torch.Tensor, valid_lens: List[int]) -> torch.Tensor:
         X[~mask] = value
         return X
 
-    if valid_lens is None:
+    if valid_lengths is None:
         return nn.functional.softmax(X, dim=-1)
     else:
         shape = X.shape
-        if valid_lens.dim() == 1:
-            valid_lens = torch.repeat_interleave(valid_lens, shape[1])
+        if valid_lengths.dim() == 1:
+            valid_lengths = torch.repeat_interleave(valid_lengths, shape[1])
         else:
-            valid_lens = valid_lens.reshape(-1)
+            valid_lengths = valid_lengths.reshape(-1)
         # On the last axis, replace masked elements with a very large negative
         # value, whose exponentiation outputs 0
-        X = _sequence_mask(X.reshape(-1, shape[-1]), valid_lens, value=-1e6)
+        X = _sequence_mask(X.reshape(-1, shape[-1]), valid_lengths, value=-1e6)
         return nn.functional.softmax(X.reshape(shape), dim=-1)
 
 
