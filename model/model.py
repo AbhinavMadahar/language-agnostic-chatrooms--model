@@ -8,17 +8,6 @@ from torch import nn
 # the following classes are helpers for the Encoder and Decoder classes.
 # these should not be used directly.
 
-class EncoderBlock(nn.Module):
-    """
-    A encoder block consisting of a multi-head attention and a positionwise feedforward layer, both wrapped with residual connections and layer norm.
-    """
-
-    def __init__(self, num_hiddens: int, ffn_num_hiddens: int, num_heads: int, dropout: float, use_bias: bool = False) -> None:
-        raise NotImplementedError
-    
-    def forward(self, x: torch.Tensor, valid_lengths: Iterable[int]) -> torch.Tensor:
-        raise NotImplementedError
-
 
 def masked_softmax(X: torch.Tensor, valid_lens: List[int]) -> torch.Tensor:
     """Perform softmax operation by masking elements on the last axis."""
@@ -72,7 +61,7 @@ class DotProductAttention(nn.Module):
 
 class MultiHeadAttention(nn.Module):
     """Multi-head attention."""
-    def __init__(self, num_hiddens: int, num_heads: int, dropout: float, bias: bool = False, **kwargs) -> None:
+    def __init__(self, num_hiddens: int, num_heads: int, dropout: float, bias: bool = False) -> None:
         super().__init__()
         self.num_heads = num_heads
         self.attention = DotProductAttention(dropout, num_heads)
@@ -109,25 +98,25 @@ class MultiHeadAttention(nn.Module):
 
 class PositionWiseFFN(nn.Module):
     """Positionwise feed-forward network."""
-    def __init__(self, ffn_num_hiddens, ffn_num_outputs):
+    def __init__(self, ffn_num_hiddens: int, ffn_num_outputs: int) -> None:
         super().__init__()
         self.dense1 = nn.LazyLinear(ffn_num_hiddens)
         self.relu = nn.ReLU()
         self.dense2 = nn.LazyLinear(ffn_num_outputs)
 
-    def forward(self, X):
-        return self.dense2(self.relu(self.dense1(X)))
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.dense2(self.relu(self.dense1(x)))
 
 
 class AddNorm(nn.Module):
     """Residual connection followed by layer normalization."""
-    def __init__(self, norm_shape, dropout):
+    def __init__(self, norm_shape, dropout: float) -> None:
         super().__init__()
         self.dropout = nn.Dropout(dropout)
         self.ln = nn.LayerNorm(norm_shape)
 
-    def forward(self, X, Y):
-        return self.ln(self.dropout(Y) + X)
+    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        return self.ln(self.dropout(y) + x)
 
 
 class DecoderBlock(nn.Module):
@@ -177,6 +166,24 @@ class DecoderBlock(nn.Module):
         x3 = self.addnorm3(z, self.ffn(z))
 
         return x3, state
+
+
+class EncoderBlock(nn.Module):
+    """
+    A encoder block consisting of a multi-head attention and a positionwise feedforward layer, both wrapped with residual connections and layer norm.
+    """
+
+    def __init__(self, num_hiddens: int, ffn_num_hiddens: int, num_heads: int, dropout: float, use_bias: bool = False) -> None:
+        super().__init__()
+        self.attention = MultiHeadAttention(num_hiddens, num_heads, dropout, use_bias)
+        self.addnorm1 = AddNorm(num_hiddens, dropout)
+        self.ffn = PositionWiseFFN(ffn_num_hiddens, num_hiddens)
+        self.addnorm2 = AddNorm(num_hiddens, dropout)
+    
+    def forward(self, x: torch.Tensor, valid_lengths: Iterable[int]) -> torch.Tensor:
+        y = self.addnorm1(x, self.attention(x, x, x, valid_lengths))
+        z = self.addnorm2(y, self.ffn(y))
+        return z
 
 
 class PositionEncoding(nn.Module):
