@@ -21,9 +21,6 @@ def train_many_to_many(encoder: Encoder,
     """
     Trains the model for the first phase.
     In this phase, we train the model to translate from every language to every other language.
-
-    :param learning_rate: The learning rate.
-    :return: A list of the train loss values and a list of the validation loss values.
     """
 
     raise NotImplementedError
@@ -48,9 +45,6 @@ def train_many_to_one(encoder: Encoder,
     """
     Trains the model for the second phase.
     In this phase, we fine-tune the general, many-to-many model to translate to a specific language.
-
-    :param learning_rate: The learning rate.
-    :return: A list of the train loss values and a list of the validation loss values.
     """
 
     raise NotImplementedError
