@@ -55,6 +55,10 @@ That way, for example, the backend knows which languages the engine supports.
     - [ ] Use OPUS API instead of scraping
     - [ ] Save pairs files without overloading the RAM by streaming from the network to the file on disk
     - [x] Save every sentence from every language into its own file
+    - [ ] Support loading the config file to define supported languages
+- [ ] Implement vocabulary
+    - [ ] Save and load a vocabulary from a file
+    - [ ] Generate vocabularies for all the supported languages from the config file
 - [ ] Implement model
     - [x] Implement encoder and decoder
     - [ ] Implement training
