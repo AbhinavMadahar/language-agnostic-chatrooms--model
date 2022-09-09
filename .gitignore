@@ -5,4 +5,4 @@
 
 data/pairs
 data/sentences
-data/vocabularies
+data/vocabulary.pickle

@@ -104,18 +104,23 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if not os.path.exists('data/vocabularies'):
-        os.makedirs('data/vocabularies')
-    
-    for language in args.language.split(' '):
-        vocab = Vocabulary(language, args.min_frequency)
+    languages = args.language.split(' ')
+
+    vocab = Vocabulary(min_frequency=args.min_frequency)
+
+    # at the end of each input sequence, we specify which language to target
+    for language in languages:
+        vocab.add_token(f'<Target language: {language}>')
+
+    for language in languages:
         with open(f'data/sentences/{language}.txt', 'r') as file:
             for sentence in file:
                 vocab.add_tokens_from_text(sentence)
-        vocab.remove_uncommon()
 
-        with open(f'data/vocabularies/{language}.vocab', 'wb') as file:
-            pickle.dump(vocab, file)
+    vocab.remove_uncommon()
+
+    with open(f'data/vocabulary.pickle', 'wb') as file:
+        pickle.dump(vocab, file)
 
 if __name__ == '__main__':
     main()

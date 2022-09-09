@@ -1,4 +1,5 @@
 import argparse
+import pickle
 import random
 import torch
 
@@ -176,6 +177,12 @@ def main() -> None:
     args = parser.parse_args()
 
     # we load in the dataset
+    with open(f'data/vocabulary.pickle', 'rb') as file:
+        vocab: Vocabulary = pickle.load(file)
+
+    data = read(args.languages.split(' '), vocab)
+    for pair, generator in data.items():
+        print(pair, next(generator))
 
     encoder = Encoder()
     decoder = Decoder()
