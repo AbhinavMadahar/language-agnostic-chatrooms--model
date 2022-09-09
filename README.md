@@ -50,18 +50,22 @@ That way, for example, the backend knows which languages the engine supports.
           It's easy to translate ~100 most common languages because we have a lot of data for them (e.g. Arabic, Bengali, Chinese).
           Translating less common languages is harder because there aren't as many data sets available for them.
 - [x] Figure out how much storage space will be taken up by the dataset
-- [ ] Select languages to target
-- [ ] Download dataset
-    - [ ] Write download script
-        - [ ] Make download script stop using so much RAM
-    - [ ] Run download script on training machine
+- [x] Select languages to target
+- [ ] Implement data downloading
+    - [ ] Use OPUS API instead of scraping
+    - [ ] Save pairs files without overloading the RAM by streaming from the network to the file on disk
+    - [ ] Save every sentence from every language into its own file
 - [ ] Implement model
-    - [ ] Write code to implement encoder, decoder, and training
-    - [ ] Write code to evaluate a model
-    - [ ] Implement beam search
-    - [ ] Run beam search to find best hyperparameter configuration
-    - [ ] Train the best hyperparameter configuration fully
-- [ ] Connect `main.py` to the model
+    - [x] Implement encoder and decoder
+    - [ ] Implement training
+    - [ ] Implement model evaluation for beam search
+    - [x] Implement beam search
+    - [ ] Implement saving and loading a model
+    - [ ] Connect main.py to the saved model if one exists
+- [ ] Deploy
+    - [ ] Download dataset to training machine
+    - [ ] Run beam search to find ideal hyperparameter configuration
+    - [ ] Train extensively using the ideal hyperparameter configuration and save model
 
 ## Model design
 
