@@ -84,22 +84,21 @@ def main() -> None:
         "--language",
         type=str,
         required=True,
-        help="The name of the language."
+        help="The name of the language(s)."
     )
     args = parser.parse_args()
-    
-    language = args.language
-    
-    vocab = Vocabulary(language)
-    with open(f'data/sentences/{language}.txt', 'r') as file:
-        for sentence in file:
-            vocab.add_tokens_from_text(sentence)
 
     if not os.path.exists('data/vocabularies'):
         os.makedirs('data/vocabularies')
+    
+    for language in args.language.split(' '):
+        vocab = Vocabulary(language)
+        with open(f'data/sentences/{language}.txt', 'r') as file:
+            for sentence in file:
+                vocab.add_tokens_from_text(sentence)
 
-    with open(f'data/vocabularies/{language}.vocab', 'wb') as file:
-        pickle.dump(vocab, file)
+        with open(f'data/vocabularies/{language}.vocab', 'wb') as file:
+            pickle.dump(vocab, file)
 
 if __name__ == '__main__':
     main()
