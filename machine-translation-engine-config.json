@@ -7,5 +7,6 @@
         { "code": "fr" },
         { "code": "ar" },
         { "code": "ru" }
-    ]
+    ],
+    "min-frequency": 5
 }
