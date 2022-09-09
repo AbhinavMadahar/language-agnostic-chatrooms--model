@@ -64,6 +64,19 @@ class Vocabulary:
     def __len__(self) -> int:
         return len(self.token_to_index)
     
+    def remove_uncommon(self) -> None:
+        "Removes all tokens which appear fewer times than min_frequency."
+        if self.min_frequency is None:
+            return
+
+        new_token_to_index: Dict[str, int] = dict()
+        for token, frequency in self.frequency_of_token.items():
+            if frequency >= self.min_frequency:
+                new_token_to_index[token] = len(new_token_to_index)
+        
+        self.token_to_index = new_token_to_index
+        self.index_to_token: Dict[str, int] = {index:token for token, index in self.token_to_index.items()}
+    
     def sparsely_encoded(self, text: str) -> List[int]:
         "Encode into indices, e.g. 'I like dogs' might become [1, 45, 123]."
 
@@ -86,16 +99,24 @@ def main() -> None:
         required=True,
         help="The name of the language(s)."
     )
+    parser.add_argument(
+        "--min_frequency",
+        type=int,
+        required=False,
+        default=None,
+        help="The minimum number of times a token must appear for it to be saved in the vocabulary."
+    )
     args = parser.parse_args()
 
     if not os.path.exists('data/vocabularies'):
         os.makedirs('data/vocabularies')
     
     for language in args.language.split(' '):
-        vocab = Vocabulary(language)
+        vocab = Vocabulary(language, args.min_frequency)
         with open(f'data/sentences/{language}.txt', 'r') as file:
             for sentence in file:
                 vocab.add_tokens_from_text(sentence)
+        vocab.remove_uncommon()
 
         with open(f'data/vocabularies/{language}.vocab', 'wb') as file:
             pickle.dump(vocab, file)
