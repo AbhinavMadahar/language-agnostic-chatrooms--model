@@ -192,10 +192,19 @@ class PositionEncoding(nn.Module):
     """
 
     def __init__(self, num_hiddens: int, dropout: float, max_length: int) -> None:
-        raise NotImplementedError
+        super().__init__()
+        self.dropout = nn.Dropout(dropout)
+        # Create a long enough P
+        self.P = torch.zeros((1, max_length, num_hiddens))
+        X = torch.arange(max_length, dtype=torch.float32).reshape(
+            -1, 1) / torch.pow(10000, torch.arange(
+            0, num_hiddens, 2, dtype=torch.float32) / num_hiddens)
+        self.P[:, :, 0::2] = torch.sin(X)
+        self.P[:, :, 1::2] = torch.cos(X)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        raise NotImplementedError
+        x = x + self.P[:, :x.shape[1], :].to(x.device)
+        return self.dropout(x)
 
 
 # we implement the main Encoder and Decoder classes now.
