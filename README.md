@@ -54,7 +54,7 @@ That way, for example, the backend knows which languages the engine supports.
 - [ ] Implement data downloading
     - [ ] Use OPUS API instead of scraping
     - [ ] Save pairs files without overloading the RAM by streaming from the network to the file on disk
-    - [ ] Save every sentence from every language into its own file
+    - [x] Save every sentence from every language into its own file
 - [ ] Implement model
     - [x] Implement encoder and decoder
     - [ ] Implement training

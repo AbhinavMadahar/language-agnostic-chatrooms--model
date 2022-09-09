@@ -172,7 +172,7 @@ func downloadCorpora(corpora *[]corpus, pairs chan<- []Pair) {
 	}
 }
 
-func downloadSentencesPairToFile(lang1, lang2, filename string, done chan<- struct{}) {
+func downloadSentencesPairToFile(lang1, lang2 string, done chan<- struct{}) {
 	defer func() { done <- struct{}{} }()
 
 	corpora, ok := corporaOfSentencePairs(lang1, lang2)
@@ -180,13 +180,30 @@ func downloadSentencesPairToFile(lang1, lang2, filename string, done chan<- stru
 		return
 	}
 
-	f, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	pairs_filename := fmt.Sprintf("pairs/%s-%s.pairs", lang1, lang2)
+	pairs_file, err := os.OpenFile(pairs_filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	defer f.Close()
+	lang1_filename := fmt.Sprintf("sentences/%s.txt", lang1)
+	lang1_file, err := os.OpenFile(lang1_filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	lang2_filename := fmt.Sprintf("sentences/%s.txt", lang2)
+	lang2_file, err := os.OpenFile(lang2_filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	defer pairs_file.Close()
+	defer lang1_file.Close()
+	defer lang2_file.Close()
 
 	pairs := make(chan []Pair)
 	go downloadCorpora(corpora, pairs)
@@ -195,7 +212,25 @@ func downloadSentencesPairToFile(lang1, lang2, filename string, done chan<- stru
 			sentence1, sentence2 := pair.Sentences[0], pair.Sentences[1]
 			stringed := fmt.Sprintf("%s: %s\n%s: %s\n\n", sentence1.Lang, sentence1.Content, sentence2.Lang, sentence2.Content)
 
-			if _, err = f.WriteString(stringed); err != nil {
+			var lang1_sentence string
+			var lang2_sentence string
+			if sentence1.Lang == lang1 {
+				lang1_sentence = sentence1.Content + "\n"
+				lang2_sentence = sentence2.Content + "\n"
+			} else {
+				lang1_sentence = sentence2.Content + "\n"
+				lang2_sentence = sentence1.Content + "\n"
+			}
+
+			if _, err = pairs_file.WriteString(stringed); err != nil {
+				fmt.Println(err)
+				return
+			}
+			if _, err = lang1_file.WriteString(lang1_sentence); err != nil {
+				fmt.Println(err)
+				return
+			}
+			if _, err = lang2_file.WriteString(lang2_sentence); err != nil {
 				fmt.Println(err)
 				return
 			}
@@ -211,9 +246,10 @@ func main() {
 
 	done := make(chan struct{}, expected)
 	_ = os.Mkdir("pairs", os.ModePerm)
+	_ = os.Mkdir("sentences", os.ModePerm)
 	for i, lang1 := range languages {
 		for _, lang2 := range languages[i+1:] {
-			downloadSentencesPairToFile(lang1, lang2, fmt.Sprintf("pairs/%s-%s.pairs", lang1, lang2), done)
+			downloadSentencesPairToFile(lang1, lang2, done)
 		}
 	}
 
