@@ -6,7 +6,21 @@ from vocab import Vocabulary
 from typing import Dict, Generator, Iterable, List, Tuple
 
 
-def tensors_from_pairs_file(file: Iterable[str], vocab_1, vocab_2) -> Generator[Tuple[torch.Tensor, torch.Tensor], None, None]:
+def vocab_from_pairs_file(filename: str, language: str, vocab: Vocabulary = None) -> Vocabulary:
+    if vocab is None:
+        vocab = Vocabulary(language)
+    
+    with open(filename, 'r') as f:
+        for line in f:
+            if line.startswith(language):
+                without_prefix = line[len(language)+2:]  # we skip the language code, the colon, and the space
+                print(without_prefix)
+                vocab.add_tokens_from_text(without_prefix)
+    
+    return vocab
+
+
+def tensors_from_pairs_file(file: Iterable[str], vocab_1: Vocabulary, vocab_2: Vocabulary) -> Generator[Tuple[torch.Tensor, torch.Tensor], None, None]:
     """
     Extracts the sentences from a pairs file and yields them as tensors.
 
@@ -20,8 +34,6 @@ def tensors_from_pairs_file(file: Iterable[str], vocab_1, vocab_2) -> Generator[
             sentence_1, sentence_2, _ = next(file), next(file), next(file)
         except StopIteration:
             break 
-        vocab_1.add_tokens_from_text(sentence_1)
-        vocab_2.add_tokens_from_text(sentence_2)
         tensor_1 = vocab_1.sparsely_encoded(sentence_1)
         tensor_2 = vocab_2.sparsely_encoded(sentence_2)
         yield (tensor_1, tensor_2)
@@ -29,7 +41,18 @@ def tensors_from_pairs_file(file: Iterable[str], vocab_1, vocab_2) -> Generator[
     file.close()
 
 
-def read(languages: List[str]) -> Dict[Tuple[str, str], Generator[Tuple[torch.Tensor, torch.Tensor], None, None]]:
+def read(languages: List[str]) -> Tuple[Dict[Tuple[str, str], Generator[Tuple[torch.Tensor, torch.Tensor], None, None]], Dict[str, Vocabulary]]:
+    """
+    Reads the data for the supplied languages and returns the sentence pairs along with the vocabularies for the languages.
+    
+    Arguments:
+        languages: A list of languages to read.
+                   The names should be given in the same format as the saved files in data/pairs (e.g. 'es', 'fr', etc.)
+    
+    Returns:
+        A dictionary mapping language pairs to generators of their sentences and a dictionary mapping languages to their vocabularies.
+    """
+    
     vocabularies: Dict[str, Vocabulary] = defaultdict(Vocabulary)
 
     data: Dict[Tuple[str, str], Generator[Tuple[torch.Tensor, torch.Tensor]]] = dict()
