@@ -62,6 +62,7 @@ That way, for example, the backend knows which languages the engine supports.
 - [ ] Implement model
     - [x] Implement encoder and decoder
     - [ ] Implement training
+        - [ ] Read in the dataset
     - [ ] Implement model evaluation for beam search
     - [x] Implement beam search
     - [ ] Implement saving and loading a model
