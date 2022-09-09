@@ -85,7 +85,7 @@ def train(encoder: Encoder,
     :return: A dictionary mapping languages to their many-to-one machine translation models.
     """
 
-    def randomly_sampled_sentence_pairs(data: Dict[Tuple[str, str], Iterable[Tuple[torch.Tensor, torch.Tensor]]]) -> Generator[Tuple[torch.Tensor, torch.Tensor]]:
+    def randomly_sampled_sentence_pairs(data: Dict[Tuple[str, str], Iterable[Tuple[torch.Tensor, torch.Tensor]]]) -> Generator[Tuple[torch.Tensor, torch.Tensor], None, None]:
         "Use the existing iterables to make a new iterable which randomly samples with uniformity over the language pairs."
         language_pairs_which_still_have_data = list(data.keys())
         while len(language_pairs_which_still_have_data) != 0:
@@ -99,7 +99,7 @@ def train(encoder: Encoder,
     
     def randomly_sampled_sentence_pairs_for_single_language_pair(data: Dict[Tuple[str, str], Iterable[Tuple[torch.Tensor, torch.Tensor]]],
                                                                  language: str
-        ) -> Generator[Tuple[torch.Tensor, torch.Tensor]]:
+        ) -> Generator[Tuple[torch.Tensor, torch.Tensor], None, None]:
         """
         Tensors which translate from any language to the given language.
         This should be used in the second phase.
@@ -223,7 +223,7 @@ def main() -> None:
                       args.decoder_dropout,
                       args.max_length)
 
-    train(encoder, decoder, read(args.languages.split(' ')), args.first_phase_learning_rate, args.second_phase_learning_rate, args.validation_split)
+    train(encoder, decoder, data, args.first_phase_learning_rate, args.second_phase_learning_rate, args.validation_split)
 
 
 if __name__ == '__main__':
