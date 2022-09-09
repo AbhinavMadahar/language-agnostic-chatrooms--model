@@ -76,7 +76,7 @@ class Vocabulary:
     def sparsely_encoded(self, text: str) -> List[int]:
         "Encode into indices, e.g. 'I like dogs' might become [1, 45, 123]."
 
-        encoded = []
+        encoded = [self.token_to_index[SOS]]
         for token in nltk.tokenize.wordpunct_tokenize(text):
             if token in self.token_to_index and (self.min_frequency is None or self.frequency_of_token[token] >= self.min_frequency):
                 encoded.append(self.token_to_index[token])
