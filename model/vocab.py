@@ -16,8 +16,8 @@ from typing import Dict, List
 
 
 OOV = 0  # out of vocabulary
-EOS = 1  # end of sequence
-SOS = 2  # start of sequence
+SOS = 1  # start of sequence
+EOS = 2  # end of sequence
 
 class Vocabulary:
     """
@@ -35,15 +35,11 @@ class Vocabulary:
         """
         self.language_name = language_name
 
-        self.token_to_index: Dict[str, int] = dict()
+        self.token_to_index: Dict[str, int] = {OOV: 0, SOS: 1, EOS: 2}
         self.index_to_token: Dict[str, int] = {index:token for token, index in self.token_to_index.items()}
 
         self.frequency_of_token: Dict[str, int] = Counter()
         self.min_frequency = min_frequency
-
-        self.add_token(OOV)
-        self.add_token(EOS)
-        self.add_token(SOS)
     
     def add_token(self, token: str) -> None:
         index = len(self)
@@ -69,7 +65,7 @@ class Vocabulary:
         if self.min_frequency is None:
             return
 
-        new_token_to_index: Dict[str, int] = dict()
+        new_token_to_index: Dict[str, int] = {OOV: 0, SOS: 1, EOS: 2}
         for token, frequency in self.frequency_of_token.items():
             if frequency >= self.min_frequency:
                 new_token_to_index[token] = len(new_token_to_index)
