@@ -4,10 +4,11 @@ import random
 import torch
 
 from collections import defaultdict
-from data import read
-from model import Encoder, Decoder
 from torch import nn
 from typing import Any, Dict, List, Generator, Iterable, Tuple
+
+from data import read
+from model import Encoder, Decoder
 from vocab import Vocabulary
 
 
@@ -174,6 +175,30 @@ def main() -> None:
         default=0.1,
     )
 
+    encoder_args = ['encoder_num_hiddens', 'encoder_ffn_num_hiddens', 'encoder_num_heads', 'encoder_num_blocks', 'max_length']
+    decoder_args = ['decoder_num_hiddens', 'decoder_ffn_num_hiddens', 'decoder_num_heads', 'decoder_num_blocks']
+    for argname in encoder_args + decoder_args:
+        parser.add_argument(
+            f'--{argname}',
+            type=int,
+            required=True,
+        )
+    parser.add_argument(
+        '--encoder_use_bias',
+        type=bool,
+        required=True
+    )
+    parser.add_argument(
+        '--encoder_dropout',
+        type=float,
+        required=True
+    )
+    parser.add_argument(
+        '--decoder_dropout',
+        type=float,
+        required=True
+    )
+
     args = parser.parse_args()
 
     # we load in the dataset
@@ -181,11 +206,22 @@ def main() -> None:
         vocab: Vocabulary = pickle.load(file)
 
     data = read(args.languages.split(' '), vocab)
-    for pair, generator in data.items():
-        print(pair, next(generator))
 
-    encoder = Encoder()
-    decoder = Decoder()
+    encoder = Encoder(len(vocab),
+                      args.encoder_num_hiddens,
+                      args.encoder_ffn_num_hiddens,
+                      args.encoder_num_heads,
+                      args.encoder_num_blocks,
+                      args.encoder_dropout,
+                      args.max_length,
+                      args.encoder_use_bias)
+    decoder = Decoder(len(vocab),
+                      args.decoder_num_hiddens,
+                      args.decoder_ffn_num_hiddens,
+                      args.decoder_num_heads,
+                      args.decoder_num_blocks,
+                      args.decoder_dropout,
+                      args.max_length)
 
     train(encoder, decoder, read(args.languages.split(' ')), args.first_phase_learning_rate, args.second_phase_learning_rate, args.validation_split)
 
