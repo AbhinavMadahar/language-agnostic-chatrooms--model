@@ -1,4 +1,15 @@
+"""
+Manipulate vocabularies.
+
+This module can be used to generate a vocabulary from a sentences file.
+To do so, give the name of the language.
+The program will save the vocabulary to the data/vocabularies directory in a file called language_name.vocab
+"""
+
+import argparse
 import nltk
+import pickle
+import os
 
 from collections import Counter
 from typing import Dict, List
@@ -65,3 +76,30 @@ class Vocabulary:
         encoded.append(self.token_to_index[EOS])
 
         return encoded
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--language",
+        type=str,
+        required=True,
+        help="The name of the language."
+    )
+    args = parser.parse_args()
+    
+    language = args.language
+    
+    vocab = Vocabulary(language)
+    with open(f'data/sentences/{language}.txt', 'r') as file:
+        for sentence in file:
+            vocab.add_tokens_from_text(sentence)
+
+    if not os.path.exists('data/vocabularies'):
+        os.makedirs('data/vocabularies')
+
+    with open(f'data/vocabularies/{language}.vocab', 'wb') as file:
+        pickle.dump(vocab, file)
+
+if __name__ == '__main__':
+    main()
