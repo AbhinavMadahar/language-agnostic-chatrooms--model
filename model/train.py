@@ -79,14 +79,21 @@ def train(encoder: Encoder,
 
     :param encoder: The encoder.
     :param decoder: The decoder.
-    :param data: A dictionary which maps language pairs (e.g. ('en', 'fr')) to an iterator of sentence pairs tensors.
+    :param data: A dictionary which maps language pairs (e.g. ('en', 'fr')) to an iterator of 
+                 sentence pairs tensors.
     :param first_phase_learning_rate: The learning rate for the first phase.
     :param second_phase_learning_rate: The learning rate for the second phase.
     :return: A dictionary mapping languages to their many-to-one machine translation models.
     """
 
-    def randomly_sampled_sentence_pairs(data: Dict[Tuple[str, str], Iterable[Tuple[torch.Tensor, torch.Tensor]]]) -> Generator[Tuple[torch.Tensor, torch.Tensor], None, None]:
-        "Use the existing iterables to make a new iterable which randomly samples with uniformity over the language pairs."
+    def randomly_sampled_sentence_pairs(
+        data: Dict[Tuple[str, str], Iterable[Tuple[torch.Tensor, torch.Tensor]]],
+        ) -> Generator[Tuple[torch.Tensor, torch.Tensor], None, None]:
+        """
+        Use the existing iterables to make a new iterable which randomly samples
+        with uniformity over the language pairs.
+        """
+
         language_pairs_which_still_have_data = list(data.keys())
         while len(language_pairs_which_still_have_data) != 0:
             language_pair = random.choice(language_pairs_which_still_have_data)
@@ -97,15 +104,16 @@ def train(encoder: Encoder,
             except StopIteration:
                 language_pairs_which_still_have_data.remove(language_pair)
     
-    def randomly_sampled_sentence_pairs_for_single_language_pair(data: Dict[Tuple[str, str], Iterable[Tuple[torch.Tensor, torch.Tensor]]],
-                                                                 language: str
+    def randomly_sampled_sentence_pairs_for_single_language_pair(
+        data: Dict[Tuple[str, str], Iterable[Tuple[torch.Tensor, torch.Tensor]]],
+        language: str,
         ) -> Generator[Tuple[torch.Tensor, torch.Tensor], None, None]:
         """
         Tensors which translate from any language to the given language.
         This should be used in the second phase.
         """
 
-        pairs_involving_language_which_still_have_data = [pair for pair in data.keys() if language in pair]
+        pairs_involving_language_which_still_have_data = [pair for pair in data if language in pair]
         while len(pairs_involving_language_which_still_have_data) != 0:
             language_pair = random.choice(pairs_involving_language_which_still_have_data)
             try:
@@ -115,7 +123,11 @@ def train(encoder: Encoder,
                 pairs_involving_language_which_still_have_data.remove(language_pair)
         
     # phase 1
-    train_many_to_many(encoder, decoder, randomly_sampled_sentence_pairs(data), learning_rate=first_phase_learning_rate, validation_split=validation_split)
+    train_many_to_many(encoder, 
+                       decoder, 
+                       randomly_sampled_sentence_pairs(data), 
+                       learning_rate=first_phase_learning_rate, 
+                       validation_split=validation_split)
 
     # phase 2
     languages = []
@@ -127,7 +139,11 @@ def train(encoder: Encoder,
     base_encoder, base_decoder = encoder, decoder
     for language in languages:
         encoder, decoder = clone(base_encoder), clone(base_decoder)
-        train_many_to_one(encoder, decoder, randomly_sampled_sentence_pairs_for_single_language_pair(data, language), second_phase_learning_rate, validation_split=validation_split)
+        train_many_to_one(encoder, 
+                          decoder, 
+                          randomly_sampled_sentence_pairs_for_single_language_pair(data, language), 
+                          second_phase_learning_rate, 
+                          validation_split=validation_split)
         many_to_one_models[language] = (encoder, decoder)
     
     return many_to_one_models
@@ -175,8 +191,15 @@ def main() -> None:
         default=0.1,
     )
 
-    encoder_args = ['encoder_num_hiddens', 'encoder_ffn_num_hiddens', 'encoder_num_heads', 'encoder_num_blocks', 'max_length']
-    decoder_args = ['decoder_num_hiddens', 'decoder_ffn_num_hiddens', 'decoder_num_heads', 'decoder_num_blocks']
+    encoder_args = ['encoder_num_hiddens', 
+                    'encoder_ffn_num_hiddens', 
+                    'encoder_num_heads', 
+                    'encoder_num_blocks', 
+                    'max_length']
+    decoder_args = ['decoder_num_hiddens', 
+                    'decoder_ffn_num_hiddens', 
+                    'decoder_num_heads', 
+                    'decoder_num_blocks']
     for argname in encoder_args + decoder_args:
         parser.add_argument(
             f'--{argname}',
@@ -223,7 +246,12 @@ def main() -> None:
                       args.decoder_dropout,
                       args.max_length)
 
-    train(encoder, decoder, data, args.first_phase_learning_rate, args.second_phase_learning_rate, args.validation_split)
+    train(encoder, 
+          decoder, 
+          data, 
+          args.first_phase_learning_rate, 
+          args.second_phase_learning_rate, 
+          args.validation_split)
 
 
 if __name__ == '__main__':
