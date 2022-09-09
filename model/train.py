@@ -124,10 +124,10 @@ def train(encoder: Encoder,
                        validation_split=validation_split)
 
     # phase 2
-    languages = []
+    languages = set()
     for pair in data.keys():
-        languages.append(pair[0])
-        languages.append(pair[1])
+        languages.add(pair[0])
+        languages.add(pair[1])
     
     many_to_one_models: Dict[str, Tuple[Encoder, Decoder]] = dict()
     base_encoder, base_decoder = encoder, decoder
