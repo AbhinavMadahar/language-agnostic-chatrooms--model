@@ -180,21 +180,21 @@ func downloadSentencesPairToFile(lang1, lang2 string, done chan<- struct{}) {
 		return
 	}
 
-	pairs_filename := fmt.Sprintf("pairs/%s-%s.pairs", lang1, lang2)
+	pairs_filename := fmt.Sprintf("data/pairs/%s-%s.pairs", lang1, lang2)
 	pairs_file, err := os.OpenFile(pairs_filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	lang1_filename := fmt.Sprintf("sentences/%s.txt", lang1)
+	lang1_filename := fmt.Sprintf("data/sentences/%s.txt", lang1)
 	lang1_file, err := os.OpenFile(lang1_filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	lang2_filename := fmt.Sprintf("sentences/%s.txt", lang2)
+	lang2_filename := fmt.Sprintf("data/sentences/%s.txt", lang2)
 	lang2_file, err := os.OpenFile(lang2_filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		fmt.Println(err)
@@ -245,8 +245,8 @@ func main() {
 	sort.Strings(languages)
 
 	done := make(chan struct{}, expected)
-	_ = os.Mkdir("pairs", os.ModePerm)
-	_ = os.Mkdir("sentences", os.ModePerm)
+	_ = os.Mkdir("data/pairs", os.ModePerm)
+	_ = os.Mkdir("data/sentences", os.ModePerm)
 	for i, lang1 := range languages {
 		for _, lang2 := range languages[i+1:] {
 			downloadSentencesPairToFile(lang1, lang2, done)
