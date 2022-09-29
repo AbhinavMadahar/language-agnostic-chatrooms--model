@@ -41,40 +41,6 @@ We keep this file in the general repository directory so that the app and the en
 That way, for example, the backend knows which languages the engine supports.
 
 
-## TODO
-
-- [x] Design architecture
-    - [x] Read literature
-    - [x] Decide how to formulate this problem
-        - How many languages should we support?
-          It's easy to translate ~100 most common languages because we have a lot of data for them (e.g. Arabic, Bengali, Chinese).
-          Translating less common languages is harder because there aren't as many data sets available for them.
-- [x] Figure out how much storage space will be taken up by the dataset
-- [x] Select languages to target
-- [ ] Implement data downloading
-    - [ ] Use OPUS API instead of scraping
-    - [ ] Save pairs files without overloading the RAM by streaming from the network to the file on disk
-    - [x] Save every sentence from every language into its own file
-    - [ ] Support loading the config file to define supported languages
-- [ ] Implement vocabulary
-    - [x] Save and load a vocabulary from a file
-    - [ ] Generate vocabularies for all the supported languages from the config file
-- [ ] Implement model
-    - [x] Implement encoder and decoder
-    - [ ] Implement training
-        - [x] Read in the dataset
-        - [ ] Implement training many-to-many
-        - [ ] Implement training many-to-one
-        - [ ] Implement model cloning
-    - [ ] Implement model evaluation for beam search
-    - [x] Implement beam search
-    - [ ] Implement saving and loading a model
-    - [ ] Connect main.py to the saved model if one exists
-- [ ] Deploy
-    - [ ] Download dataset to training machine
-    - [ ] Run beam search to find ideal hyperparameter configuration
-    - [ ] Train extensively using the ideal hyperparameter configuration and save model
-
 ## Model design
 
 This problem can be characterized as a _many-to-many machine translation problem_.
