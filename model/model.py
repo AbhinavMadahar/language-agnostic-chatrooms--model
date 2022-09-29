@@ -84,8 +84,7 @@ class MultiHeadAttention(nn.Module):
         if valid_lens is not None:
             # On axis 0, copy the first item (scalar or vector) for num_heads
             # times, then copy the next item, and so on
-            valid_lens = torch.repeat_interleave(
-                valid_lens, repeats=self.num_heads, dim=0)
+            valid_lens = torch.repeat_interleave(valid_lens, repeats=self.num_heads, dim=0)
 
         # Shape of output: (batch_size * num_heads, no. of queries,
         # num_hiddens / num_heads)
@@ -94,6 +93,26 @@ class MultiHeadAttention(nn.Module):
         # Shape of output_concat: (batch_size, no. of queries, num_hiddens)
         output_concat = self.transpose_output(output)
         return self.W_o(output_concat)
+
+    def transpose_qkv(self, x: torch.Tensor) -> torch.Tensor:
+        """Transposition for parallel computation of multiple attention heads."""
+        # Shape of input x:
+        #   (batch_size, no. of queries or key-value pairs, # num_hiddens).
+        # Shape of output x:
+        #   (batch_size, no. of queries or key-value pairs, num_heads, num_hiddens / num_heads)
+        x = x.reshape(x.shape[0], x.shape[1], self.num_heads, -1)
+        # Shape of output x:
+        #   (batch_size, num_heads, no. of queries or key-value pairs, num_hiddens / num_heads)
+        x = x.permute(0, 2, 1, 3)
+        # Shape of output:
+        #   (batch_size * num_heads, no. of queries or key-value pairs, num_hiddens / num_heads)
+        return x.reshape(-1, x.shape[2], x.shape[3])
+
+    def transpose_output(self, x):
+        """Reverse the operation of transpose_qkv."""
+        x = x.reshape(-1, self.num_heads, x.shape[1], x.shape[2])
+        x = x.permute(0, 2, 1, 3)
+        return x.reshape(x.shape[0], x.shape[1], -1)
 
 
 class PositionWiseFFN(nn.Module):
@@ -127,16 +146,16 @@ class DecoderBlock(nn.Module):
 
     def __init__(self, num_hiddens: int, ffn_num_hiddens: int, num_heads: int, dropout: float, i: int) -> None:
         super().__init__()
-        
+
         self.i = i
-        
+
         self.attention1 = MultiHeadAttention(num_hiddens, num_heads, dropout)
         self.addnorm1 = AddNorm(num_hiddens, dropout)
         self.attention2 = MultiHeadAttention(num_hiddens, num_heads, dropout)
         self.addnorm2 = AddNorm(num_hiddens, dropout)
         self.ffn = PositionWiseFFN(ffn_num_hiddens, num_hiddens)
         self.addnorm3 = AddNorm(num_hiddens, dropout)
-    
+
     def forward(self, x: torch.Tensor, state: Tuple[torch.Tensor, torch.Tensor, torch.Tensor]) -> torch.Tensor:
         encoder_outputs, encoder_valid_lengths = state[0], state[1]
         # During training, all the tokens of any output sequence are processed
@@ -144,7 +163,7 @@ class DecoderBlock(nn.Module):
         # decoding any output sequence token by token during prediction,
         # state[2][self.i] contains representations of the decoded output at
         # the i-th block up to the current time step
-        
+
         key_values = x if state[2][self.i] is None else torch.cat((state[2][self.i], x), dim=1)
         state[2][self.i] = key_values
 
@@ -179,7 +198,7 @@ class EncoderBlock(nn.Module):
         self.addnorm1 = AddNorm(num_hiddens, dropout)
         self.ffn = PositionWiseFFN(ffn_num_hiddens, num_hiddens)
         self.addnorm2 = AddNorm(num_hiddens, dropout)
-    
+
     def forward(self, x: torch.Tensor, valid_lengths: Iterable[int]) -> torch.Tensor:
         y = self.addnorm1(x, self.attention(x, x, x, valid_lengths))
         z = self.addnorm2(y, self.ffn(y))
@@ -191,17 +210,28 @@ class PositionEncoding(nn.Module):
     This layer encodes position information for a transformer model.
     """
 
+    SUPER_LONG_NUMBER = 10000
+
     def __init__(self, num_hiddens: int, dropout: float, max_length: int) -> None:
+        if max_length > self.SUPER_LONG_NUMBER:
+            raise ValueError(
+                f'The maximum supported max_length is {self.SUPER_LONG_NUMBER}, but' + \
+                f'max_length={max_length} was passed as an argument. '
+            )
+        if num_hiddens % 2 != 0:
+            raise ValueError(f"num_hiddens must be even, but {num_hiddens} supplied.")
+
         super().__init__()
         self.dropout = nn.Dropout(dropout)
         # Create a long enough P
         self.P = torch.zeros((1, max_length, num_hiddens))
-        X = torch.arange(max_length, dtype=torch.float32).reshape(
-            -1, 1) / torch.pow(10000, torch.arange(
-            0, num_hiddens, 2, dtype=torch.float32) / num_hiddens)
-        self.P[:, :, 0::2] = torch.sin(X)
-        self.P[:, :, 1::2] = torch.cos(X)
-    
+        x = torch.arange(max_length, dtype=torch.float32).reshape(-1, 1) / \
+            torch.pow(
+                self.SUPER_LONG_NUMBER,
+                torch.arange(0, num_hiddens, 2, dtype=torch.float32) / num_hiddens)
+        self.P[:, :, 0::2] = torch.sin(x)
+        self.P[:, :, 1::2] = torch.cos(x)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x + self.P[:, :x.shape[1], :].to(x.device)
         return self.dropout(x)
@@ -216,8 +246,8 @@ class Encoder(nn.Module):
     """
 
     def __init__(self,
-                 vocab_size: int, 
-                 num_hiddens: int, 
+                 vocab_size: int,
+                 num_hiddens: int,
                  ffn_num_hiddens: int,
                  num_heads: int,
                  num_blocks: int,
@@ -228,26 +258,38 @@ class Encoder(nn.Module):
         super().__init__()
 
         self.num_hiddens = num_hiddens
-        self.attention_weights = None
+        self.attention_weights: List = None
 
         self.embedding = nn.Embedding(vocab_size, num_hiddens)
         self.position_encoding = PositionEncoding(num_hiddens, dropout, max_length)
         self.blocks = nn.Sequential(OrderedDict(
-            (f'block {i}', EncoderBlock(num_hiddens, ffn_num_hiddens, num_heads, dropout, use_bias)) for i in range(num_blocks)
+            (f'block {i}', EncoderBlock(num_hiddens, ffn_num_hiddens, num_heads, dropout, use_bias))
+            for i in range(num_blocks)
         ))
-    
-    def forward(self, x: torch.Tensor, valid_lengths: Iterable[int]) -> torch.Tensor:
+
+    def forward(self, x: torch.Tensor, valid_lengths: List[int]) -> torch.Tensor:
+        """
+        Send sequences through the transformer.
+
+        Args:
+            x (torch.Tensor): A tensor representing the sequences.
+                              It should have shape (number of sequences, max length of sequence).
+            valid_lengths (List[int]): _description_
+
+        Returns:
+            torch.Tensor: The final output of the all the blocks of the transformer.
+        """
         # don't worry about why we multiply by sqrt(num_hiddens).
         # it's a long story.
         # maybe I'll one day update this comment to explain why.
         x = self.position_encoding(self.embedding(x) * math.sqrt(self.num_hiddens))
 
-        self.attention = []
+        self.attention_weights = []
         # we go pass x through each block
         for block in self.blocks:
             x = block(x, valid_lengths)
             self.attention_weights.append(block.attention.attention.attention_weights)
-        
+
         return x
 
 
@@ -286,9 +328,9 @@ class Decoder(nn.Module):
             self._attention_weights[1].append(block.attention2.attention.attention_weights)
 
         x = self.dense(x)
-        
+
         return x, state
-    
+
     @property
     def attention_weights(self) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         return self._attention_weights
