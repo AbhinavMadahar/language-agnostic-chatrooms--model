@@ -53,7 +53,12 @@ class DotProductAttention(nn.Module):
             n, num_queries, num_kv_pairs = scores.shape
             # Shape of window_mask: (num_windows, no. of queries,
             # no. of key-value pairs)
-            scores = scores.reshape((n // (num_windows * self.num_heads), num_windows, self.num_heads, num_queries, num_kv_pairs)) + window_mask.unsqueeze(1).unsqueeze(0)
+            scores = scores.reshape((n // (num_windows * self.num_heads),
+                                     num_windows,
+                                     self.num_heads,
+                                     num_queries,
+                                     num_kv_pairs)) \
+                    + window_mask.unsqueeze(1).unsqueeze(0)
             scores = scores.reshape((n, num_queries, num_kv_pairs))
         self.attention_weights = masked_softmax(scores, valid_lens)
         return torch.bmm(self.dropout(self.attention_weights), values)
@@ -61,7 +66,8 @@ class DotProductAttention(nn.Module):
 
 class MultiHeadAttention(nn.Module):
     """Multi-head attention."""
-    def __init__(self, num_hiddens: int, num_heads: int, dropout: float, bias: bool = False) -> None:
+    def __init__(self, num_hiddens: int, num_heads: int, dropout: float, bias: bool = False) \
+        -> None:
         super().__init__()
         self.num_heads = num_heads
         self.attention = DotProductAttention(dropout, num_heads)
@@ -140,11 +146,17 @@ class AddNorm(nn.Module):
 
 class DecoderBlock(nn.Module):
     """
-    A decoder block consisting of a masked multi-head attention, a multi-body attention using the encoder outputs, and a positionwise feedforward layer,
-    all wrapped with residual connections and layer norm.
+    A decoder block consisting of a masked multi-head attention, a multi-body attention using the
+    encoder outputs, and a positionwise feedforward layer, all wrapped with residual connections
+    and layer norm.
     """
 
-    def __init__(self, num_hiddens: int, ffn_num_hiddens: int, num_heads: int, dropout: float, i: int) -> None:
+    def __init__(self,
+                 num_hiddens: int,
+                 ffn_num_hiddens: int,
+                 num_heads: int,
+                 dropout: float,
+                 i: int) -> None:
         super().__init__()
 
         self.i = i
@@ -156,7 +168,8 @@ class DecoderBlock(nn.Module):
         self.ffn = PositionWiseFFN(ffn_num_hiddens, num_hiddens)
         self.addnorm3 = AddNorm(num_hiddens, dropout)
 
-    def forward(self, x: torch.Tensor, state: Tuple[torch.Tensor, torch.Tensor, torch.Tensor]) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, state: Tuple[torch.Tensor, torch.Tensor, torch.Tensor]) \
+        -> torch.Tensor:
         encoder_outputs, encoder_valid_lengths = state[0], state[1]
         # During training, all the tokens of any output sequence are processed
         # at the same time, so state[2][self.i] is None as initialized. When
@@ -189,10 +202,16 @@ class DecoderBlock(nn.Module):
 
 class EncoderBlock(nn.Module):
     """
-    A encoder block consisting of a multi-head attention and a positionwise feedforward layer, both wrapped with residual connections and layer norm.
+    A encoder block consisting of a multi-head attention and a positionwise feedforward layer,
+    both wrapped with residual connections and layer norm.
     """
 
-    def __init__(self, num_hiddens: int, ffn_num_hiddens: int, num_heads: int, dropout: float, use_bias: bool = False) -> None:
+    def __init__(self,
+                 num_hiddens: int,
+                 ffn_num_hiddens: int,
+                 num_heads: int,
+                 dropout: float,
+                 use_bias: bool = False) -> None:
         super().__init__()
         self.attention = MultiHeadAttention(num_hiddens, num_heads, dropout, use_bias)
         self.addnorm1 = AddNorm(num_hiddens, dropout)
@@ -298,7 +317,14 @@ class Decoder(nn.Module):
     Transformer-based decoder for the machine translation model.
     """
 
-    def __init__(self, vocab_size: int, num_hiddens: int, ffn_num_hiddens: int, num_heads: int, num_blocks: int, dropout: float, max_length: int) -> None:
+    def __init__(self,
+                 vocab_size: int,
+                 num_hiddens: int,
+                 ffn_num_hiddens: int,
+                 num_heads: int,
+                 num_blocks: int,
+                 dropout: float,
+                 max_length: int) -> None:
         super().__init__()
 
         self.num_hiddens = num_hiddens
@@ -308,19 +334,23 @@ class Decoder(nn.Module):
         self.position_encoding = PositionEncoding(num_hiddens, dropout, max_length)
 
         self.blocks = nn.Sequential(OrderedDict(
-            (f'block {i}', DecoderBlock(num_hiddens, ffn_num_hiddens, num_heads, dropout, i)) for i in range(num_blocks)
+            (f'block {i}', DecoderBlock(num_hiddens, ffn_num_hiddens, num_heads, dropout, i))
+            for i in range(num_blocks)
         ))
         self.dense = nn.LazyLinear(vocab_size)
 
         self._attention_weights = None
 
-    def init_state(self, encoder_outputs: List[torch.Tensor], encoder_valid_lengths: List[int]) -> None:
+    def init_state(self, encoder_outputs: List[torch.Tensor], encoder_valid_lengths: List[int]) \
+        -> None:
         return [encoder_outputs, encoder_valid_lengths, [None] * self.num_blocks]
 
-    def forward(self, x: torch.Tensor, state: Tuple[torch.Tensor, torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, state: Tuple[torch.Tensor, torch.Tensor, torch.Tensor]) \
+        -> Tuple[torch.Tensor, torch.Tensor]:
         x = self.position_encoding(self.embedding(x) * math.sqrt(self.num_hiddens))
 
-        # the first list is the decoder self-attention weights, and the second list is the encoder-decoder attention weights
+        # the first list is the decoder self-attention weights,
+        # and the second list is the encoder-decoder attention weights
         self._attention_weights = [[], []]
         for i, block in enumerate(self.blocks):
             x, state = block(x, state)
