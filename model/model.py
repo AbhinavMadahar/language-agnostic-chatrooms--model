@@ -1,7 +1,7 @@
 import math
 import torch
 
-from typing import Iterable, List, OrderedDict, Tuple
+from typing import Iterable, List, OrderedDict, Optional, Tuple
 from torch import nn
 
 
@@ -9,33 +9,34 @@ from torch import nn
 # these should not be used directly.
 
 
-def masked_softmax(X: torch.Tensor, valid_lengths: List[int]) -> torch.Tensor:
+def masked_softmax(x: torch.Tensor, valid_lengths: torch.Tensor) -> torch.Tensor:
     """Perform softmax operation by masking elements on the last axis."""
     # X: 3D tensor, valid_lens: 1D or 2D tensor
-    def _sequence_mask(X, valid_len, value=0):
-        maxlen = X.size(1)
-        mask = torch.arange((maxlen), dtype=torch.float32,
-                            device=X.device)[None, :] < valid_len[:, None]
-        X[~mask] = value
-        return X
+    def _sequence_mask(x: torch.Tensor, valid_lengths: torch.Tensor, value: float = 0) \
+        -> torch.Tensor:
+        maxlen = x.size(1)
+        mask = torch.arange((maxlen), dtype=torch.float32, device=x.device)[None, :] \
+               < valid_lengths[:, None]
+        x[~mask] = value
+        return x
 
     if valid_lengths is None:
-        return nn.functional.softmax(X, dim=-1)
+        return nn.functional.softmax(x, dim=-1)
     else:
-        shape = X.shape
+        shape = x.shape
         if valid_lengths.dim() == 1:
             valid_lengths = torch.repeat_interleave(valid_lengths, shape[1])
         else:
             valid_lengths = valid_lengths.reshape(-1)
         # On the last axis, replace masked elements with a very large negative
         # value, whose exponentiation outputs 0
-        X = _sequence_mask(X.reshape(-1, shape[-1]), valid_lengths, value=-1e6)
-        return nn.functional.softmax(X.reshape(shape), dim=-1)
+        x = _sequence_mask(x.reshape(-1, shape[-1]), valid_lengths, value=-1e6)
+        return nn.functional.softmax(x.reshape(shape), dim=-1)
 
 
 class DotProductAttention(nn.Module):
     """Scaled dot product attention."""
-    def __init__(self, dropout: float, num_heads: int = None) -> None:
+    def __init__(self, dropout: float, num_heads: int) -> None:
         super().__init__()
         self.dropout = nn.Dropout(dropout)
         self.num_heads = num_heads
@@ -44,7 +45,13 @@ class DotProductAttention(nn.Module):
     # Shape of keys: (batch_size, no. of key-value pairs, d)
     # Shape of values: (batch_size, no. of key-value pairs, value dimension)
     # Shape of valid_lens: (batch_size,) or (batch_size, no. of queries)
-    def forward(self, queries, keys, values, valid_lens=None, window_mask=None):
+    # pyright: reportIncompatibleMethodOverride=false
+    def forward(self,
+                queries: torch.Tensor,
+                keys: torch.Tensor,
+                values: torch.Tensor,
+                valid_lengths: torch.Tensor,
+                window_mask: torch.Tensor):
         d = queries.shape[-1]
         # Swap the last two dimensions of keys with keys.transpose(1, 2)
         scores = torch.bmm(queries, keys.transpose(1, 2)) / math.sqrt(d)
@@ -53,14 +60,14 @@ class DotProductAttention(nn.Module):
             n, num_queries, num_kv_pairs = scores.shape
             # Shape of window_mask: (num_windows, no. of queries,
             # no. of key-value pairs)
-            scores = scores.reshape((n // (num_windows * self.num_heads),
+            scores = scores.reshape(n // (num_windows * self.num_heads),
                                      num_windows,
                                      self.num_heads,
                                      num_queries,
-                                     num_kv_pairs)) \
+                                     num_kv_pairs) \
                     + window_mask.unsqueeze(1).unsqueeze(0)
             scores = scores.reshape((n, num_queries, num_kv_pairs))
-        self.attention_weights = masked_softmax(scores, valid_lens)
+        self.attention_weights = masked_softmax(scores, valid_lengths)
         return torch.bmm(self.dropout(self.attention_weights), values)
 
 
@@ -76,7 +83,12 @@ class MultiHeadAttention(nn.Module):
         self.W_v = nn.LazyLinear(num_hiddens, bias=bias)
         self.W_o = nn.LazyLinear(num_hiddens, bias=bias)
 
-    def forward(self, queries, keys, values, valid_lens, window_mask=None):
+    def forward(self,
+                queries: torch.Tensor,
+                keys: torch.Tensor,
+                values: torch.Tensor,
+                valid_lens: torch.Tensor,
+                window_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         # Shape of queries, keys, or values:
         # (batch_size, no. of queries or key-value pairs, num_hiddens)
         # Shape of valid_lens: (batch_size,) or (batch_size, no. of queries)
@@ -94,8 +106,7 @@ class MultiHeadAttention(nn.Module):
 
         # Shape of output: (batch_size * num_heads, no. of queries,
         # num_hiddens / num_heads)
-        output = self.attention(queries, keys, values, valid_lens,
-                                window_mask)
+        output = self.attention(queries, keys, values, valid_lens, window_mask)
         # Shape of output_concat: (batch_size, no. of queries, num_hiddens)
         output_concat = self.transpose_output(output)
         return self.W_o(output_concat)
@@ -114,7 +125,7 @@ class MultiHeadAttention(nn.Module):
         #   (batch_size * num_heads, no. of queries or key-value pairs, num_hiddens / num_heads)
         return x.reshape(-1, x.shape[2], x.shape[3])
 
-    def transpose_output(self, x):
+    def transpose_output(self, x: torch.Tensor) -> torch.Tensor:
         """Reverse the operation of transpose_qkv."""
         x = x.reshape(-1, self.num_heads, x.shape[1], x.shape[2])
         x = x.permute(0, 2, 1, 3)
@@ -135,7 +146,7 @@ class PositionWiseFFN(nn.Module):
 
 class AddNorm(nn.Module):
     """Residual connection followed by layer normalization."""
-    def __init__(self, norm_shape, dropout: float) -> None:
+    def __init__(self, norm_shape: List[int] | int, dropout: float) -> None:
         super().__init__()
         self.dropout = nn.Dropout(dropout)
         self.ln = nn.LayerNorm(norm_shape)
@@ -169,7 +180,7 @@ class DecoderBlock(nn.Module):
         self.addnorm3 = AddNorm(num_hiddens, dropout)
 
     def forward(self, x: torch.Tensor, state: Tuple[torch.Tensor, torch.Tensor, torch.Tensor]) \
-        -> torch.Tensor:
+        -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
         encoder_outputs, encoder_valid_lengths = state[0], state[1]
         # During training, all the tokens of any output sequence are processed
         # at the same time, so state[2][self.i] is None as initialized. When
@@ -277,7 +288,7 @@ class Encoder(nn.Module):
         super().__init__()
 
         self.num_hiddens = num_hiddens
-        self.attention_weights: List = None
+        self.attention_weights: Optional[List[torch.Tensor]] = None
 
         self.embedding = nn.Embedding(vocab_size, num_hiddens)
         self.position_encoding = PositionEncoding(num_hiddens, dropout, max_length)
@@ -307,6 +318,7 @@ class Encoder(nn.Module):
         # we go pass x through each block
         for block in self.blocks:
             x = block(x, valid_lengths)
+            # pyright: reportUnknownMemberType=false, reportGeneralTypeIssues=false
             self.attention_weights.append(block.attention.attention.attention_weights)
 
         return x
@@ -339,7 +351,7 @@ class Decoder(nn.Module):
         ))
         self.dense = nn.LazyLinear(vocab_size)
 
-        self._attention_weights = None
+        self._attention_weights: Tuple[List[torch.Tensor], List[torch.Tensor]] = None
 
     def init_state(self, encoder_outputs: List[torch.Tensor], encoder_valid_lengths: List[int]) \
         -> None:
@@ -352,7 +364,7 @@ class Decoder(nn.Module):
         # the first list is the decoder self-attention weights,
         # and the second list is the encoder-decoder attention weights
         self._attention_weights = [[], []]
-        for i, block in enumerate(self.blocks):
+        for block in self.blocks:
             x, state = block(x, state)
             self._attention_weights[0].append(block.attention1.attention.attention_weights)
             self._attention_weights[1].append(block.attention2.attention.attention_weights)
