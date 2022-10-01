@@ -1,7 +1,6 @@
 import torch
 
-from model import Encoder
-from model import PositionEncoding
+from model import Encoder, Decoder, PositionEncoding, EncoderBlock, DecoderBlock
 
 
 def test_position_encoding():
@@ -31,3 +30,34 @@ def test_encoder():
     x = encoder(input_sentences, valid_lengths)
 
     assert x.shape == (*input_sentences.shape, num_hiddens)
+
+
+def test_encoder_block() -> None:
+    encoder_block = EncoderBlock(num_hiddens=24,
+                                 ffn_num_hiddens=48,
+                                 num_heads=8,
+                                 dropout=0.5,
+                                 use_bias=False)
+    encoder_block.eval()
+
+    x = torch.ones((2, 100, 24))
+    valid_lengths = torch.tensor([3, 2])
+    y = encoder_block(x, valid_lengths)
+    assert y.shape == x.shape
+
+
+def test_decoder_block() -> None:
+    encoder_block = EncoderBlock(24, 48, 8, 0.5)
+    encoder_block.eval()
+
+    decoder_block = DecoderBlock(num_hiddens=24,
+                                 ffn_num_hiddens=48,
+                                 num_heads=8,
+                                 dropout=0.5,
+                                 i=0)
+    x = torch.rand((2, 100, 24))
+    valid_lengths = torch.tensor([3, 2])
+    state = [x, valid_lengths, [None]]
+    y = decoder_block(x, state)[0]
+
+    assert y.shape == x.shape
