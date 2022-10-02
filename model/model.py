@@ -353,7 +353,7 @@ class Decoder(nn.Module):
 
         self._attention_weights: Tuple[List[torch.Tensor], List[torch.Tensor]] = None
 
-    def init_state(self, encoder_outputs: List[torch.Tensor], encoder_valid_lengths: List[int]) \
+    def init_state(self, encoder_outputs: torch.Tensor, encoder_valid_lengths: torch.Tensor) \
         -> None:
         return [encoder_outputs, encoder_valid_lengths, [None] * self.num_blocks]
 
