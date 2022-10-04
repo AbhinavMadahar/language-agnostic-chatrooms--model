@@ -354,7 +354,7 @@ class Decoder(nn.Module):
         self._attention_weights: Tuple[List[torch.Tensor], List[torch.Tensor]] = None
 
     def init_state(self, encoder_outputs: torch.Tensor, encoder_valid_lengths: torch.Tensor) \
-        -> None:
+        -> Tuple[torch.Tensor, torch.Tensor, List[None]]:
         return [encoder_outputs, encoder_valid_lengths, [None] * self.num_blocks]
 
     def forward(self, x: torch.Tensor, state: Tuple[torch.Tensor, torch.Tensor, torch.Tensor]) \
@@ -376,3 +376,23 @@ class Decoder(nn.Module):
     @property
     def attention_weights(self) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         return self._attention_weights
+
+
+class EncoderDecoderModel(nn.Module):
+    """The base class for the encoder-decoder architecture."""
+    def __init__(self, encoder: Encoder, decoder: Decoder):
+        super().__init__()
+        self.encoder = encoder
+        self.decoder = decoder
+
+    def forward(self,
+                encoder_x: torch.Tensor,
+                encoder_x_valid_lengths: torch.Tensor,
+                decoder_x: torch.Tensor,
+                decoder_x_valid_lengths: torch.Tensor) \
+        -> torch.Tensor:
+        encoder_outputs = self.encoder(encoder_x, encoder_x_valid_lengths)
+        decoder_state = self.decoder.init_state(encoder_outputs, encoder_x_valid_lengths)
+        # Return decoder output only
+        decoder_output = self.decoder(decoder_x, decoder_state)[0]
+        return decoder_output

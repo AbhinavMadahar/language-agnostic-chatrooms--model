@@ -1,6 +1,9 @@
 import torch
 
-from model import Encoder, Decoder, PositionEncoding, EncoderBlock, DecoderBlock
+from model import EncoderDecoderModel, \
+                  Encoder, Decoder, \
+                  PositionEncoding, \
+                  EncoderBlock, DecoderBlock
 
 
 def test_position_encoding():
@@ -86,3 +89,53 @@ def test_decoder() -> None:
     ]).to(torch.int)
 
     decoder(input_sentences, state)
+
+
+def test_model():
+    """
+    Make sure that the encoder-decoder model can read in a sequence and output a valid sequence.
+    Note that this does not consider how accurate the output is, just that it is a valid sequence.
+    """
+
+    input_sentences = torch.Tensor([
+        [1, 3, 2, 0, 34, 0],
+        [1, 3, 2, 0, 0, 0],
+        [1, 3, 2, 2, 0, 0],
+    ]).to(torch.int)
+    input_sentences_valid_lengths = torch.Tensor([5, 3, 4])
+
+    target_sentences = torch.Tensor([
+        [2, 3, 3, 7, 5, 0],
+        [4, 4, 2, 4, 0, 0],
+        [1, 3, 0, 2, 0, 0],
+    ]).to(torch.int)
+    target_sentences_valid_lengths = torch.Tensor([5, 4, 4])
+
+    num_hiddens = 12
+    decoder_vocab_size = 97
+
+    encoder = Encoder(vocab_size=91,
+                      num_hiddens=num_hiddens,
+                      ffn_num_hiddens=17,
+                      num_heads=3,
+                      num_blocks=3,
+                      dropout=0.5,
+                      max_length=20,
+                      use_bias=True)
+
+    decoder = Decoder(vocab_size=decoder_vocab_size,
+                      num_hiddens=num_hiddens,
+                      ffn_num_hiddens=10,
+                      num_heads=4,
+                      num_blocks=3,
+                      dropout=0.5,
+                      max_length=10)
+
+    model = EncoderDecoderModel(encoder, decoder)
+
+    predictions = model(input_sentences,
+                        input_sentences_valid_lengths,
+                        target_sentences,
+                        target_sentences_valid_lengths)
+
+    assert predictions.shape == (*target_sentences.shape, decoder_vocab_size)
