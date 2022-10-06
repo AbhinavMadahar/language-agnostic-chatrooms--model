@@ -24,7 +24,7 @@ def tensors_from_pairs_file(file: TextIO, vocab: Vocabulary) -> \
     file.close()
 
 
-def read(languages: List[str], vocab: Vocabulary) \
+def read(languages: List[str], vocab: Vocabulary | None = None) \
     -> Dict[Tuple[str, str], Generator[Tuple[torch.Tensor, torch.Tensor], None, None]]:
     """
     Reads the data for the supplied languages and returns generators of the sentence pairs.
@@ -39,6 +39,9 @@ def read(languages: List[str], vocab: Vocabulary) \
     Returns:
         A dictionary mapping language pairs to generators of their sentences.
     """
+
+    if vocab is None:
+        vocab = pickle.load(open('data/vocabulary.pickle', 'rb'))
 
     data: Dict[Tuple[str, str], Generator[Tuple[torch.Tensor, torch.Tensor], None, None]] = dict()
     for i, language_1 in enumerate(languages):
