@@ -9,21 +9,26 @@ The program will save the vocabulary to the data/vocabularies directory in a fil
 import argparse
 import nltk
 import pickle
-import os
+import re
 
 from collections import Counter
 from typing import Dict, List
 
 
-OOV = 0  # out of vocabulary
-SOS = 1  # start of sequence
-EOS = 2  # end of sequence
+OOV = 'OOV'  # out of vocabulary
+SOS = 'SOS'  # start of sequence
+EOS = 'EOS'  # end of sequence
+PAD = 'PAD'  # padding token
 
 class Vocabulary:
     """
     Handle the vocabulary of a language.
     """
-    def __init__(self, language_name: str = None, min_frequency: int = None) -> None:
+    def __init__(self,
+                 filename: str | None = None,
+                 language_name: str | None = None,
+                 min_frequency: int | None = None
+        ) -> None:
         """
         Initialize the vocabulary.
 
@@ -35,12 +40,21 @@ class Vocabulary:
         """
         self.language_name = language_name
 
-        self.token_to_index: Dict[str, int] = {OOV: 0, SOS: 1, EOS: 2}
-        self.index_to_token: Dict[str, int] = {index:token for token, index in self.token_to_index.items()}
+        self.token_to_index: Dict[str, int] = {OOV: 0, SOS: 1, EOS: 2, PAD: 3}
+        self.index_to_token: Dict[int, str] = {index:token for token, index in self.token_to_index.items()}
 
         self.frequency_of_token: Dict[str, int] = Counter()
         self.min_frequency = min_frequency
-    
+
+        if filename is not None:
+            with open(filename, 'r') as file:
+                for line in file:
+                    frequency, index, token = re.search(r'\((\d+)\) (\d+) (.*)', line).groups()
+                    frequency, index = int(frequency), int(index)
+                    self.token_to_index[token] = index
+                    self.index_to_token[index] = token
+                    self.frequency_of_token[token] = frequency
+
     def add_token(self, token: str) -> None:
         index = len(self)
 
@@ -48,31 +62,31 @@ class Vocabulary:
         self.index_to_token[index] = token
 
         self.frequency_of_token[token] += 1
-    
+
     def add_tokens_from_text(self, text: str) -> None:
         tokens = nltk.tokenize.wordpunct_tokenize(text)
         for token in tokens:
             self.add_token(token)
-    
+
     def __contains__(self, token) -> bool:
         return token in self.token_to_index
-    
+
     def __len__(self) -> int:
         return len(self.token_to_index)
-    
+
     def remove_uncommon(self) -> None:
         "Removes all tokens which appear fewer times than min_frequency."
         if self.min_frequency is None:
             return
 
-        new_token_to_index: Dict[str, int] = {OOV: 0, SOS: 1, EOS: 2}
+        new_token_to_index: Dict[str, int] = {OOV: 0, SOS: 1, EOS: 2, PAD: 3}
         for token, frequency in self.frequency_of_token.items():
             if frequency >= self.min_frequency:
                 new_token_to_index[token] = len(new_token_to_index)
-        
+
         self.token_to_index = new_token_to_index
-        self.index_to_token: Dict[str, int] = {index:token for token, index in self.token_to_index.items()}
-    
+        self.index_to_token = {index:token for token, index in self.token_to_index.items()}
+
     def sparsely_encoded(self, text: str) -> List[int]:
         "Encode into indices, e.g. 'I like dogs' might become [1, 45, 123]."
 
@@ -85,6 +99,17 @@ class Vocabulary:
         encoded.append(self.token_to_index[EOS])
 
         return encoded
+
+    def to_file(self, filename: str) -> None:
+        with open(filename, 'w') as file:
+            for token, index in self.token_to_index.items():
+                frequency = self.frequency_of_token[token]
+                line = f'({frequency}) {index} {token}\n'
+                file.write(line)
+
+    @property
+    def size(self) -> int:
+        return len(self.token_to_index)
 
 
 def main() -> None:

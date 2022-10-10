@@ -102,6 +102,7 @@ class MultiHeadAttention(nn.Module):
         if valid_lens is not None:
             # On axis 0, copy the first item (scalar or vector) for num_heads
             # times, then copy the next item, and so on
+            valid_lens = torch.Tensor(valid_lens).to(torch.int)
             valid_lens = torch.repeat_interleave(valid_lens, repeats=self.num_heads, dim=0)
 
         # Shape of output: (batch_size * num_heads, no. of queries,
@@ -391,8 +392,8 @@ class EncoderDecoderModel(nn.Module):
                 decoder_x: torch.Tensor,
                 decoder_x_valid_lengths: torch.Tensor) \
         -> torch.Tensor:
-        encoder_outputs = self.encoder(encoder_x, encoder_x_valid_lengths)
+        encoder_outputs = self.encoder(encoder_x.to(torch.int), encoder_x_valid_lengths)
         decoder_state = self.decoder.init_state(encoder_outputs, encoder_x_valid_lengths)
         # Return decoder output only
-        decoder_output = self.decoder(decoder_x, decoder_state)[0]
+        decoder_output = self.decoder(decoder_x.to(torch.int), decoder_state)[0]
         return decoder_output
