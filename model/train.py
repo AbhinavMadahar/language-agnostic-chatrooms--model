@@ -80,38 +80,35 @@ def evaluate(encoder: Encoder,
     raise NotImplementedError
 
 
-def train_many_to_many(encoder: Encoder,
-                       decoder: Decoder,
-                       data: Iterable[Tuple[torch.Tensor, torch.Tensor]],
-                       optim: torch.optim.Optimizer,
-                       criterion: Callable[[torch.Tensor, torch.Tensor], float],
-                       learning_rate: float,
+def train_many_to_many(model: EncoderDecoderModel,
+                       data: Iterable[Tuple[
+                           Tuple[torch.Tensor, torch.Tensor],
+                           Tuple[int, int]]],
+                       optimizer: torch.optim.Optimizer,
+                       criterion: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
                        validation_split: float,
                        batch_size: int,
-                       max_length: int,
-                       device: torch.device,
-    ) -> Tuple[List[List[float]], List[float], List[float]]:
+                       vocab: Vocabulary,
+    ) -> Tuple[List[List[float]], List[float]]:
     """
     Trains the model for the first phase.
     In this phase, we train the model to translate from every language to every other language.
 
     Arguments:
-        encoder: The encoder.
-        decoder: The decoder.
-        data: The data stream. The sentence pairs can be from any language pair.
-        optim: The optimizer.
-        criterion: A function which measures how similar two sentences are.
-        learning_rate: The learning rate.
-        validation_split: The proportion of the data to use for validation. It must be between zero
-                          (inclusive) and one (exclusive).
-        batch_size: The batch size to use.
-        max_length: The maximum length a sequence can be.
-        device: The device to train on. Note that training on multiple device is unsupported.
+        model: The model to train.
+        data: A stream of input and target sequences and their lengths.
+        optim: The optimizer to use.
+        criterion: A loss function.
+        learning_rate: The learning rate to use during optimization.
+        validation_split: How much of the data to use for validation as a proportion from 0 to 1.
+                          This cannot be equal to 1.
+        batch_size: The batch size to use during training.
+        num_batches: How many batches to go through before validation.
+        vocab: The vocabulary to use during training.
 
     Returns:
-        A tuple of three lists. The first list contains the training losses grouped by epoch, the
-        second list contains the validation losses, and the third list contains the values returned
-        by the criterion.
+        A tuple of two lists. The first list contains the training losses grouped by epoch and the
+        second list contains the validation losses.
 
     Raises:
         ValueError: If validation_split is not in [0, 1).
@@ -121,7 +118,23 @@ def train_many_to_many(encoder: Encoder,
         raise ValueError('The validation split must be between 0 (inclusive) and 1 (exclusive), ' +
                          f'but a validation split of {validation_split} was given.')
 
-    raise NotImplementedError
+    num_epochs = 10
+    num_batches_per_epoch = 3
+    train_losseses: List[List[float]] = []
+    validation_losses: List[float] = []
+    for _ in range(num_epochs):
+        train_losses, validation_loss = train_many_to_many_single_epoch(model,
+                                                                        data,
+                                                                        optimizer,
+                                                                        criterion,
+                                                                        validation_split,
+                                                                        batch_size,
+                                                                        num_batches_per_epoch,
+                                                                        vocab)
+        train_losseses.append(train_losses)
+        validation_losses.append(validation_loss)
+
+    return train_losseses, validation_losses
 
 
 def train_many_to_many_single_epoch(model: EncoderDecoderModel,
@@ -140,8 +153,7 @@ def train_many_to_many_single_epoch(model: EncoderDecoderModel,
     It trains on the data and then evaluates on a validation set.
 
     Args:
-        encoder: The encoder to train.
-        decoder: The decoder to train.
+        model: The model to train.
         data: A stream of input and target sequences and their lengths.
         optim: The optimizer to use.
         criterion: A loss function.
@@ -160,18 +172,10 @@ def train_many_to_many_single_epoch(model: EncoderDecoderModel,
         ValueError: If validation_split is not in [0, 1).
     """
 
-    if not (0 <= validation_split < 1):
-        raise ValueError('validation split must be between 0 (inclusive) and 1 (exclusive), ' + \
-                         f'but {validation_split} was passed.')
-
-    model.train()
-
-    losses: List[float] = []
-
-    for _ in range(num_batches):
-        # we divide the batch size by two because we use the pairs in both directions in phase 1,
-        # e.g. we use an (EN, FR) pair to train in the EN -> FR direction and the FR -> EN direction
-        pairs_with_valid_lengths = list(itertools.islice(data, batch_size // 2))
+    def model_inputs(data: Iterable[Tuple[ Tuple[torch.Tensor, torch.Tensor], Tuple[int, int]]],
+                     batch_size: int = batch_size // 2) \
+        -> Tuple[torch.Tensor, List[int], torch.Tensor, torch.Tensor, torch.Tensor]:
+        pairs_with_valid_lengths = list(itertools.islice(data, batch_size))
         pairs = [pair for pair, _ in pairs_with_valid_lengths]
         valid_lengths = [valid_lengths for _, valid_lengths in pairs_with_valid_lengths]
 
@@ -184,6 +188,30 @@ def train_many_to_many_single_epoch(model: EncoderDecoderModel,
         decoder_input_sequences = torch.zeros_like(targets)
         decoder_input_sequences[:, 0] = vocab.token_to_index[SOS]
         decoder_input_sequences_valid_lengths = torch.ones(batch_size)
+
+        return (batch,
+                valid_lengths,
+                decoder_input_sequences,
+                decoder_input_sequences_valid_lengths,
+                targets)
+
+
+    if not (0 <= validation_split < 1):
+        raise ValueError('validation split must be between 0 (inclusive) and 1 (exclusive), ' + \
+                         f'but {validation_split} was passed.')
+
+    model.train()
+
+    losses: List[float] = []
+
+    for _ in range(num_batches):
+        # we divide the batch size by two because we use the pairs in both directions in phase 1,
+        # e.g. we use an (EN, FR) pair to train in the EN -> FR direction and the FR -> EN direction
+        (batch,
+         valid_lengths,
+         decoder_input_sequences,
+         decoder_input_sequences_valid_lengths,
+         targets) = model_inputs(data)
 
         output = model(batch,
                        valid_lengths,
@@ -200,8 +228,22 @@ def train_many_to_many_single_epoch(model: EncoderDecoderModel,
 
         losses.append(float(loss))
 
+    validation_size = int(validation_split * (num_batches * batch_size))
+    (batch,
+     valid_lengths,
+     decoder_input_sequences,
+     decoder_input_sequences_valid_lengths,
+     targets) = model_inputs(data, batch_size=validation_size)
 
-    return losses, 0.
+    output = model(batch,
+                   valid_lengths,
+                   decoder_input_sequences,
+                   decoder_input_sequences_valid_lengths)
+    predictions = output.argmax(axis=2)
+    predictions, targets = predictions.to(torch.float), targets.to(torch.float)
+    validation_loss = float(criterion(predictions, targets))
+
+    return losses, validation_loss
 
 
 def train_many_to_one(encoder: Encoder,
