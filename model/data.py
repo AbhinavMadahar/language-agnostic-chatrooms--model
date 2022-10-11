@@ -1,5 +1,4 @@
 import argparse
-from importlib.metadata import requires
 import pickle
 import torch
 
