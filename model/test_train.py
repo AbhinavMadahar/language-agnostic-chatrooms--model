@@ -7,7 +7,7 @@ from typing import Generator, Tuple
 
 from data import read
 from model import Encoder, Decoder, EncoderDecoderModel
-from train import rouge_n, train_many_to_many_single_epoch
+from train import train_many_to_many_single_epoch
 from vocab import Vocabulary
 
 def test_train_many_to_many_single_epoch() -> None:
