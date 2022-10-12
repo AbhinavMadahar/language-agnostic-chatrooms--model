@@ -288,41 +288,37 @@ def train_many_to_one(encoder: Encoder,
     raise NotImplementedError
 
 
-def train_many_to_one_single_epoch(encoder: Encoder,
-                                   decoder: Decoder,
-                                   data: Iterable[Tuple[torch.Tensor, torch.Tensor]],
-                                   optim: torch.optim.Optimizer,
-                                   criterion: Callable[[torch.Tensor, torch.Tensor], float],
-                                   learning_rate: float,
+def train_many_to_one_single_epoch(model: EncoderDecoderModel,
+                                   data: Iterable[Tuple[
+                                       Tuple[torch.Tensor, torch.Tensor],
+                                       Tuple[int, int]]],
+                                   optimizer: torch.optim.Optimizer,
+                                   criterion: Callable[[torch.Tensor, torch.Tensor],
+                                                       torch.Tensor],
                                    validation_split: float,
                                    batch_size: int,
                                    num_batches: int,
-                                   max_length: int,
-                                   device: torch.device,
-    ) -> Tuple[List[float], float, float]:
+                                   vocab: Vocabulary,
+    ) -> Tuple[List[float], float]:
     """
     Trains the model for a single epoch during the second phase.
     It trains on the data and then evaluates on a validation set.
 
     Args:
-        encoder: The encoder to train.
-        decoder: The decoder to train.
-        data: A stream of input and target sequences. The input sentences can be in any language,
-              but the target sentences must all be in the same language.
+        model: The model to train.
+        data: A stream of input and target sequences and their lengths.
         optim: The optimizer to use.
-        criterion: A function which finds how similar two sentences are.
+        criterion: A loss function.
         learning_rate: The learning rate to use during optimization.
         validation_split: How much of the data to use for validation as a proportion from 0 to 1.
                           This cannot be equal to 1.
         batch_size: The batch size to use during training.
         num_batches: How many batches to go through before validation.
-        max_length: The maximum length a sequence can be.
-        device: The device to use for training. Note that we can only use a single device for
-                training.
+        vocab: The vocabulary to use during training.
 
     Returns:
-        A three-tuple where the first element is a list of the training losses, the second element
-        is the validation loss, and the third element is the value recieved by the criterion.
+        A two-tuple where the first element is a list of the training losses and the
+        second element is the validation loss.
 
     Raises:
         ValueError: If validation_split is not in [0, 1).
