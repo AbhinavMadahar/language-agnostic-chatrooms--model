@@ -1,11 +1,12 @@
 import argparse
+import copy
 import itertools
-import pickle
 import random
 import torch
 
 from rouge import Rouge
-from typing import Callable, Dict, List, Generator, Iterable, Tuple
+from torch import nn
+from typing import Callable, Dict, List, Generator, Iterator, Set, Tuple
 
 from data import read
 from model import Encoder, Decoder, EncoderDecoderModel
@@ -51,7 +52,7 @@ def rouge_n(n: int) -> Callable[[torch.Tensor, torch.Tensor], float]:
 
 def evaluate(encoder: Encoder,
              decoder: Decoder,
-             data: Iterable[Tuple[torch.Tensor, torch.Tensor]],
+             data: Iterator[Tuple[torch.Tensor, torch.Tensor]],
              criterion: Callable[[torch.Tensor, torch.Tensor], float],
              num_sentences: int,
              max_length: int,
@@ -81,7 +82,7 @@ def evaluate(encoder: Encoder,
 
 
 def train_many_to_many(model: EncoderDecoderModel,
-                       data: Iterable[Tuple[
+                       data: Iterator[Tuple[
                            Tuple[torch.Tensor, torch.Tensor],
                            Tuple[int, int]]],
                        optimizer: torch.optim.Optimizer,
@@ -139,7 +140,7 @@ def train_many_to_many(model: EncoderDecoderModel,
 
 
 def train_many_to_one(model: EncoderDecoderModel,
-                      data: Iterable[Tuple[
+                      data: Iterator[Tuple[
                           Tuple[torch.Tensor, torch.Tensor],
                           Tuple[int, int]]],
                       optimizer: torch.optim.Optimizer,
@@ -180,7 +181,7 @@ def train_many_to_one(model: EncoderDecoderModel,
 
 
 def train_single_epoch(model: EncoderDecoderModel,
-                       data: Iterable[Tuple[
+                       data: Iterator[Tuple[
                            Tuple[torch.Tensor, torch.Tensor],
                            Tuple[int, int]]],
                        optimizer: torch.optim.Optimizer,
@@ -218,7 +219,7 @@ def train_single_epoch(model: EncoderDecoderModel,
         ValueError: If validation_split is not in [0, 1).
     """
 
-    def model_inputs(data: Iterable[Tuple[ Tuple[torch.Tensor, torch.Tensor], Tuple[int, int]]],
+    def model_inputs(data: Iterator[Tuple[ Tuple[torch.Tensor, torch.Tensor], Tuple[int, int]]],
                      batch_size: int = batch_size // 2) \
         -> Tuple[torch.Tensor, List[int], torch.Tensor, torch.Tensor, torch.Tensor]:
         pairs_with_valid_lengths = list(itertools.islice(data, batch_size))
@@ -298,18 +299,11 @@ def train_single_epoch(model: EncoderDecoderModel,
     return losses, validation_loss
 
 
-
-def clone(encoder: Encoder, decoder: Decoder) -> Tuple[Encoder, Decoder]:
-    """
-    Clone a model.
-    """
-
-    raise NotImplementedError
-
-
-def train(encoder: Encoder,
-          decoder: Decoder,
-          data: Dict[Tuple[str, str], Iterable[Tuple[torch.Tensor, torch.Tensor]]],
+def train(encoder_instantiator: Callable[[], Encoder],
+          decoder_instantiator: Callable[[], Decoder],
+          data: Dict[Tuple[str, str], Iterator[Tuple[
+              Tuple[torch.Tensor, torch.Tensor],
+              Tuple[int, int]]]],
           first_phase_learning_rate: int,
           second_phase_learning_rate: int,
           validation_split: float,
@@ -320,19 +314,13 @@ def train(encoder: Encoder,
     """
     Trains the model over both phases.
     It returns the many-to-one machine translation models.
-
-    :param encoder: The encoder.
-    :param decoder: The decoder.
-    :param data: A dictionary which maps language pairs (e.g. ('en', 'fr')) to an iterator of
-                 sentence pairs tensors.
-    :param first_phase_learning_rate: The learning rate for the first phase.
-    :param second_phase_learning_rate: The learning rate for the second phase.
-    :return: A dictionary mapping languages to their many-to-one machine translation models.
     """
 
     def randomly_sampled_sentence_pairs(
-        data: Dict[Tuple[str, str], Iterable[Tuple[torch.Tensor, torch.Tensor]]],
-        ) -> Generator[Tuple[torch.Tensor, torch.Tensor], None, None]:
+        data: Dict[Tuple[str, str], Iterator[Tuple[
+            Tuple[torch.Tensor, torch.Tensor],
+            Tuple[int, int]]]],
+        ) -> Generator[Tuple[Tuple[torch.Tensor, torch.Tensor], Tuple[int, int]], None, None]:
         """
         Use the existing iterables to make a new iterable which randomly samples
         with uniformity over the language pairs.
@@ -342,16 +330,18 @@ def train(encoder: Encoder,
         while len(language_pairs_which_still_have_data) != 0:
             language_pair = random.choice(language_pairs_which_still_have_data)
             try:
-                tensor_1, tensor_2 = next(data[language_pair])
-                yield tensor_1, tensor_2
-                yield tensor_2, tensor_1
+                (tensor_1, tensor_2), (valid_length_1, valid_length_2) = next(data[language_pair])
+                yield (tensor_1, tensor_2), (valid_length_1, valid_length_2)
+                yield (tensor_2, tensor_1), (valid_length_2, valid_length_1)
             except StopIteration:
                 language_pairs_which_still_have_data.remove(language_pair)
 
     def randomly_sampled_sentence_pairs_for_single_language_pair(
-        data: Dict[Tuple[str, str], Iterable[Tuple[torch.Tensor, torch.Tensor]]],
+        data: Dict[Tuple[str, str], Iterator[Tuple[
+            Tuple[torch.Tensor, torch.Tensor],
+            Tuple[int, int]]]],
         language: str,
-        ) -> Generator[Tuple[torch.Tensor, torch.Tensor], None, None]:
+        ) -> Generator[Tuple[Tuple[torch.Tensor, torch.Tensor], Tuple[int, int]], None, None]:
         """
         Tensors which translate from any language to the given language.
         This should be used in the second phase.
@@ -361,20 +351,31 @@ def train(encoder: Encoder,
         while len(pairs_involving_language_which_still_have_data) != 0:
             language_pair = random.choice(pairs_involving_language_which_still_have_data)
             try:
-                tensor_1, tensor_2 = next(data[language_pair])
-                yield tensor_1, tensor_2 if language_pair[1] == language else tensor_2, tensor_1
+                (tensor_1, tensor_2), (valid_length_1, valid_length_2) = next(data[language_pair])
+                if language_pair[1] == language:
+                    yield (tensor_1, tensor_2), (valid_length_1, valid_length_2)
+                else:
+                    yield (tensor_2, tensor_1), (valid_length_2, valid_length_1)
             except StopIteration:
                 pairs_involving_language_which_still_have_data.remove(language_pair)
 
+    vocabulary = Vocabulary('data/vocabulary.vocab')
+
     # phase 1
-    train_many_to_many(encoder,
-                       decoder,
+    encoder, decoder = encoder_instantiator(), decoder_instantiator()
+    model = EncoderDecoderModel(encoder, decoder)
+    optimizer = torch.optim.Adam(params=model.parameters(), lr=0.01)
+    criterion = nn.CrossEntropyLoss()
+    train_many_to_many(model,
                        randomly_sampled_sentence_pairs(data),
-                       learning_rate=first_phase_learning_rate,
-                       validation_split=validation_split)
+                       optimizer,
+                       criterion,
+                       validation_split=0.2,
+                       batch_size=64,
+                       vocab=vocabulary)
 
     # phase 2
-    languages = set()
+    languages: Set[str] = set()
     for pair in data.keys():
         languages.add(pair[0])
         languages.add(pair[1])
@@ -382,12 +383,20 @@ def train(encoder: Encoder,
     many_to_one_models: Dict[str, Tuple[Encoder, Decoder]] = dict()
     base_encoder, base_decoder = encoder, decoder
     for language in languages:
-        encoder, decoder = clone(base_encoder), clone(base_decoder)
-        train_many_to_one(encoder,
-                          decoder,
-                          randomly_sampled_sentence_pairs_for_single_language_pair(data, language),
-                          second_phase_learning_rate,
-                          validation_split=validation_split)
+        encoder = encoder_instantiator()
+        encoder.load_state_dict(base_encoder.state_dict())
+        decoder = decoder_instantiator()
+        decoder.load_state_dict(base_decoder.state_dict())
+        model = EncoderDecoderModel(encoder, decoder)
+
+        train_many_to_many(model,
+                           randomly_sampled_sentence_pairs_for_single_language_pair(data, language),
+                           optimizer,
+                           criterion,
+                           validation_split=0.2,
+                           batch_size=64,
+                           vocab=vocabulary)
+
         many_to_one_models[language] = (encoder, decoder)
 
     return many_to_one_models
@@ -422,6 +431,16 @@ def main() -> None:
         type=float,
         required=False,
         default=0.1,
+    )
+    parser.add_argument(
+        '--vocabulary',
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        '--batch_size',
+        type=int,
+        required=True,
     )
 
     encoder_args = ['encoder_num_hiddens',
@@ -458,33 +477,38 @@ def main() -> None:
     args = parser.parse_args()
 
     # we load in the dataset
-    with open(f'data/vocabulary.pickle', 'rb') as file:
-        vocab: Vocabulary = pickle.load(file)
+    vocab = Vocabulary(args.vocabulary)
+    data = read(args.languages.split(' '), max_length=100, vocab=vocab)
 
-    data = read(args.languages.split(' '), vocab)
+    def encoder_instantiator():
+        return Encoder(len(vocab),
+                       args.encoder_num_hiddens,
+                       args.encoder_ffn_num_hiddens,
+                       args.encoder_num_heads,
+                       args.encoder_num_blocks,
+                       args.encoder_dropout,
+                       args.max_length,
+                       args.encoder_use_bias)
+    def decoder_instantiator():
+        return Decoder(len(vocab),
+                       args.decoder_num_hiddens,
+                       args.decoder_ffn_num_hiddens,
+                       args.decoder_num_heads,
+                       args.decoder_num_blocks,
+                       args.decoder_dropout,
+                       args.max_length)
 
-    encoder = Encoder(len(vocab),
-                      args.encoder_num_hiddens,
-                      args.encoder_ffn_num_hiddens,
-                      args.encoder_num_heads,
-                      args.encoder_num_blocks,
-                      args.encoder_dropout,
-                      args.max_length,
-                      args.encoder_use_bias)
-    decoder = Decoder(len(vocab),
-                      args.decoder_num_hiddens,
-                      args.decoder_ffn_num_hiddens,
-                      args.decoder_num_heads,
-                      args.decoder_num_blocks,
-                      args.decoder_dropout,
-                      args.max_length)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    train(encoder,
-          decoder,
+    train(encoder_instantiator,
+          decoder_instantiator,
           data,
           args.first_phase_learning_rate,
           args.second_phase_learning_rate,
-          args.validation_split)
+          args.validation_split,
+          args.batch_size,
+          args.max_length,
+          device)
 
 
 if __name__ == '__main__':
