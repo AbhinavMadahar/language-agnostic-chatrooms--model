@@ -304,16 +304,16 @@ def train(encoder_instantiator: Callable[[], Encoder],
           data: Dict[Tuple[str, str], Iterator[Tuple[
               Tuple[torch.Tensor, torch.Tensor],
               Tuple[int, int]]]],
-          first_phase_learning_rate: int,
-          second_phase_learning_rate: int,
+          first_phase_learning_rate: float,
+          second_phase_learning_rate: float,
           validation_split: float,
           batch_size: int,
           max_length: int,
           device: torch.device,
-    ) -> Dict[str, Tuple[Encoder, Decoder]]:
+    ) -> Tuple[Dict[str, Tuple[Encoder, Decoder]], Dict[str, float]]:
     """
     Trains the model over both phases.
-    It returns the many-to-one machine translation models.
+    It returns the many-to-one machine translation models and their validation losses.
     """
 
     def randomly_sampled_sentence_pairs(
@@ -364,7 +364,7 @@ def train(encoder_instantiator: Callable[[], Encoder],
     # phase 1
     encoder, decoder = encoder_instantiator(), decoder_instantiator()
     model = EncoderDecoderModel(encoder, decoder)
-    optimizer = torch.optim.Adam(params=model.parameters(), lr=0.01)
+    optimizer = torch.optim.Adam(params=model.parameters(), lr=first_phase_learning_rate)
     criterion = nn.CrossEntropyLoss()
     train_many_to_many(model,
                        randomly_sampled_sentence_pairs(data),
@@ -381,6 +381,7 @@ def train(encoder_instantiator: Callable[[], Encoder],
         languages.add(pair[1])
 
     many_to_one_models: Dict[str, Tuple[Encoder, Decoder]] = dict()
+    validation_losses_by_target_language: Dict[str, float] = dict()
     base_encoder, base_decoder = encoder, decoder
     for language in languages:
         encoder = encoder_instantiator()
@@ -389,17 +390,20 @@ def train(encoder_instantiator: Callable[[], Encoder],
         decoder.load_state_dict(base_decoder.state_dict())
         model = EncoderDecoderModel(encoder, decoder)
 
-        train_many_to_many(model,
-                           randomly_sampled_sentence_pairs_for_single_language_pair(data, language),
-                           optimizer,
-                           criterion,
-                           validation_split=0.2,
-                           batch_size=64,
-                           vocab=vocabulary)
+        optimizer = torch.optim.Adam(params=model.parameters(), lr=second_phase_learning_rate)
+        _, validation_losses = train_many_to_many(model,
+                                                  randomly_sampled_sentence_pairs_for_single_language_pair(
+                                                      data, language),
+                                                  optimizer,
+                                                  criterion,
+                                                  validation_split=0.2,
+                                                  batch_size=64,
+                                                  vocab=vocabulary)
 
         many_to_one_models[language] = (encoder, decoder)
+        validation_losses_by_target_language[language] = validation_losses[-1]
 
-    return many_to_one_models
+    return many_to_one_models, validation_losses_by_target_language
 
 
 def main() -> None:
