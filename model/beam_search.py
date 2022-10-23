@@ -35,7 +35,8 @@ class Configuration(NamedTuple):
 
 def beam_search_pass(beam: List[Configuration],
                      descend: Callable[[Configuration], Configuration],
-                     evaluate: Callable[[Configuration], float],
+                     evaluate: Callable[[Vocabulary, List[str], torch.device, int, float, Configuration],
+                                        float],
                      vocab: Vocabulary,
                      languages: List[str],
                      beam_size: int,
@@ -49,8 +50,7 @@ def beam_search_pass(beam: List[Configuration],
     """
 
     children = [descend(configuration) for _ in range(expansion_factor) for configuration in beam]
-    children = sorted(children, key=partial(evaluate, vocab, languages, device, max_length,
-                                            validation_split,))
+    children: list[Configuration] = sorted(children, key=partial(evaluate, vocab, languages, device, max_length, validation_split,))
     children = children[:beam_size]
 
     return children

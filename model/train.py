@@ -1,10 +1,9 @@
 import argparse
-import copy
 import itertools
 import random
 import torch
 
-from rouge import Rouge
+from rouge import Rouge  # type: ignore
 from torch import nn
 from typing import Callable, Dict, List, Generator, Iterator, Set, Tuple
 
@@ -43,8 +42,8 @@ def rouge_n(n: int) -> Callable[[torch.Tensor, torch.Tensor], float]:
 
         rouge = Rouge(metrics=[f'rouge-{n}'])
 
-        scores = rouge.get_scores(sequence_1_as_string, sequence_2_as_string)
-        score = scores[0][f'rouge-{n}']['r']
+        scores = rouge.get_scores(sequence_1_as_string, sequence_2_as_string)  # type: ignore
+        score: float = scores[0][f'rouge-{n}']['r']  # type: ignore
         return score
 
     return closure
@@ -275,8 +274,8 @@ def train_single_epoch(model: EncoderDecoderModel,
         loss = criterion(predictions, targets)
 
         optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.)
+        loss.backward()  # type: ignore
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.)  # type: ignore
         optimizer.step()
 
         losses.append(float(loss))
@@ -301,9 +300,9 @@ def train_single_epoch(model: EncoderDecoderModel,
 
 def train(encoder_instantiator: Callable[[], Encoder],
           decoder_instantiator: Callable[[], Decoder],
-          data: Dict[Tuple[str, str], Iterator[Tuple[
+          data: Dict[Tuple[str, str], Generator[Tuple[
               Tuple[torch.Tensor, torch.Tensor],
-              Tuple[int, int]]]],
+              Tuple[int, int]], None, None]],
           first_phase_learning_rate: float,
           second_phase_learning_rate: float,
           validation_split: float,
@@ -317,9 +316,9 @@ def train(encoder_instantiator: Callable[[], Encoder],
     """
 
     def randomly_sampled_sentence_pairs(
-        data: Dict[Tuple[str, str], Iterator[Tuple[
+        data: Dict[Tuple[str, str], Generator[Tuple[
             Tuple[torch.Tensor, torch.Tensor],
-            Tuple[int, int]]]],
+            Tuple[int, int]], None, None]],
         ) -> Generator[Tuple[Tuple[torch.Tensor, torch.Tensor], Tuple[int, int]], None, None]:
         """
         Use the existing iterables to make a new iterable which randomly samples
@@ -337,9 +336,9 @@ def train(encoder_instantiator: Callable[[], Encoder],
                 language_pairs_which_still_have_data.remove(language_pair)
 
     def randomly_sampled_sentence_pairs_for_single_language_pair(
-        data: Dict[Tuple[str, str], Iterator[Tuple[
+        data: Dict[Tuple[str, str], Generator[Tuple[
             Tuple[torch.Tensor, torch.Tensor],
-            Tuple[int, int]]]],
+            Tuple[int, int]], None, None]],
         language: str,
         ) -> Generator[Tuple[Tuple[torch.Tensor, torch.Tensor], Tuple[int, int]], None, None]:
         """
@@ -385,9 +384,9 @@ def train(encoder_instantiator: Callable[[], Encoder],
     base_encoder, base_decoder = encoder, decoder
     for language in languages:
         encoder = encoder_instantiator()
-        encoder.load_state_dict(base_encoder.state_dict())
+        encoder.load_state_dict(base_encoder.state_dict())  # type: ignore
         decoder = decoder_instantiator()
-        decoder.load_state_dict(base_decoder.state_dict())
+        decoder.load_state_dict(base_decoder.state_dict())  # type: ignore
         model = EncoderDecoderModel(encoder, decoder)
 
         optimizer = torch.optim.Adam(params=model.parameters(), lr=second_phase_learning_rate)
